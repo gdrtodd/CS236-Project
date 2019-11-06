@@ -1,5 +1,6 @@
 import os
-import glob
+from pathlib import Path
+from tqdm import tqdm
 import pypianoroll
 from pypianoroll import Multitrack
 from tqdm import tqdm
@@ -19,36 +20,31 @@ def collect_midis(base_dir, collection_dir, selected_tracks=["all"]):
         print("Creating collection directory %s" % collection_dir)
         os.mkdir(collection_dir)
 
-    for letter_1 in tqdm(os.listdir(base_dir)):
-        cur = os.path.join(base_dir, letter_1)
-        for letter_2 in os.listdir(cur):
-            cur = os.path.join(base_dir, letter_1, letter_2)
-            for letter_3 in os.listdir(cur):
-                cur = os.path.join(base_dir, letter_1, letter_2, letter_3)
-                for name in os.listdir(cur):
-                    cur = os.path.join(base_dir, letter_1, letter_2, letter_3, name)
+    selected_tracks.sort()  # to keep consistency in filename later
 
-                    # Each name should correspond to just one file
-                    assert len(os.listdir(cur)) == 1
+    # Find all of the track name directories
+    track_paths = list(Path(base_dir).rglob('TR*'))
 
-                    for checksum in os.listdir(cur):
-                        load_dir = os.path.join(cur, checksum)
-                        multiroll = Multitrack(load_dir)
+    for path in tqdm(track_paths, desc='Collecting MIDI files', total=len(track_paths)):
+        for checksum in os.listdir(path):
+            load_dir = os.path.join(path, checksum)
+            multiroll = Multitrack(load_dir)
 
-                        # Remove all tracks but those in selected_tracks
-                        if "all" not in selected_tracks:
-                            selected_tracks.sort()  # to keep consistency in filename later
-                            to_remove = [idx for idx, track in enumerate(multiroll.tracks) \
-                                            if track.name not in selected_tracks]
-                            multiroll.remove_tracks(to_remove)
+            # Remove all tracks but those in selected_tracks
+            if "all" not in selected_tracks:
 
-                            # Make sure our selected tracks persist
-                            assert len(multiroll.tracks) == len(selected_tracks)
+                to_remove = [idx for idx, track in enumerate(multiroll.tracks) \
+                                if track.name not in selected_tracks]
+                multiroll.remove_tracks(to_remove)
 
-                        # e.g. save_name = TR#########-bass-piano.mid
-                        save_name = '{}-{}.mid'.format(name, "-".join(selected_tracks).lower())
-                        save_path = os.path.join(collection_dir, save_name)
-                        multiroll.write(save_path)
+                # Make sure our selected tracks persist
+                assert len(multiroll.tracks) == len(selected_tracks)
+
+            # e.g. save_name = TR#########-bass-piano.mid
+            name = os.path.basename(path)
+            save_name = '{}-{}.mid'.format(name, "-".join(selected_tracks).lower())
+            save_path = os.path.join(collection_dir, save_name)
+            multiroll.write(save_path)
 
 if __name__ == "__main__":
 
