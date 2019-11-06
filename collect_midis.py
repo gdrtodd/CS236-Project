@@ -8,7 +8,7 @@ BASE_DIR = './data_raw/lpd_5_cleansed'
 BASS_COLLECTION_DIR = './data_processed/bass_midis'
 FULL_COLLECTION_DIR = './data_processed/full_midis'
 
-def collect_midis(base_dir, collection_dir, selected_tracks="all"):
+def collect_midis(base_dir, collection_dir, selected_tracks=["all"]):
     """
     Collects .npz files from raw data into processed data folders as .mid
     - selected_track should be a list of track(s) 
@@ -35,15 +35,20 @@ def collect_midis(base_dir, collection_dir, selected_tracks="all"):
                         load_dir = os.path.join(cur, checksum)
                         multiroll = Multitrack(load_dir)
 
-                        # Remove all but selected_tracks
-                        if selected_tracks is not "all":
-                            # Tracks: ['Drums', 'Piano', 'Guitar', 'Bass', 'Strings']
+                        # Remove all tracks but those in selected_tracks
+                        if "all" not in selected_tracks:
+                            selected_tracks.sort()  # to keep consistency in filename later
                             to_remove = [idx for idx, track in enumerate(multiroll.tracks) \
                                             if track.name not in selected_tracks]
-                            multiroll.remove_tracks(to_remove)  
+                            multiroll.remove_tracks(to_remove)
 
-                        save_dir = os.path.join(collection_dir, '{}-bass.mid'.format(name))
-                        multiroll.write(save_dir)
+                            # Make sure our selected tracks persist
+                            assert len(multiroll.tracks) == len(selected_tracks)
+
+                        # e.g. save_name = TR#########-bass-piano.mid
+                        save_name = '{}-{}.mid'.format(name, "-".join(selected_tracks).lower())
+                        save_path = os.path.join(collection_dir, save_name)
+                        multiroll.write(save_path)
 
 if __name__ == "__main__":
 
