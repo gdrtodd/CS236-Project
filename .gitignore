@@ -1,9 +1,11 @@
 magenta-master/
 
 
-# Ignore contents of data directories
+# Ignore contents of data directories but not directories themselves
 data_raw/*
+!data_raw/.gitkeep
 data_processed/*
+!data_processed/.gitkeep
 
 # VS-Code Config
 .vscode/
