@@ -5,7 +5,7 @@
 # https://github.com/tensorflow/magenta/blob/master/magenta/scripts/README.md
 
 # folder containing MIDI and/or MusicXML files. can have child folders.
-INPUT_DIRECTORY=data_processed/bass_midis
+INPUT_DIRECTORY=data_processed/midis_tracks=Bass
 
 # TFRecord file that will contain NoteSequence protocol buffers.
 SEQUENCES_TFRECORD=data_processed/tfrecords/bass_notesequences.tfrecord

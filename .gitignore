@@ -6,6 +6,7 @@ data_raw/*
 !data_raw/.gitkeep
 data_processed/*
 !data_processed/.gitkeep
+!data_processed/midis_tracks=Bass.zip
 
 # VS-Code Config
 .vscode/
