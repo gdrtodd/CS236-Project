@@ -1,13 +1,10 @@
 import os
+import argparse
 from pathlib import Path
 from tqdm import tqdm
 import pypianoroll
 from pypianoroll import Multitrack
 from tqdm import tqdm
-
-BASE_DIR = './data_raw/lpd_5_cleansed'
-BASS_COLLECTION_DIR = './data_processed/bass_midis'
-FULL_COLLECTION_DIR = './data_processed/full_midis'
 
 def collect_midis(base_dir, collection_dir, selected_tracks=["all"]):
     """
@@ -47,14 +44,17 @@ def collect_midis(base_dir, collection_dir, selected_tracks=["all"]):
             multiroll.write(save_path)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--tracks', type=str, nargs='+', default='all', choices=['all', 'Strings',
+                        'Bass', 'Drums', 'Guitar', 'Piano'])
 
-    # collect full midi tracks
-    print("Collecting full midi files...")
-    collect_midis(BASE_DIR, FULL_COLLECTION_DIR)
+    args = parser.parse_args()
+    if args.tracks == 'all':
+        args.tracks = ['all']
+    
+    base_data_dir = './data_raw/lpd_5_cleansed'
+    base_collection_dir = './data_processed/'
+    full_collection_dir = os.path.join(base_collection_dir, 'midis_tracks=' + '-'.join(args.tracks))
 
-    # collect bass
-    print("Collecting bassline midi files...")
-    collect_midis(BASE_DIR, BASS_COLLECTION_DIR, selected_tracks=["Bass"])
-
-
-
+    print("Collecting MIDI files (tracks = {})".format(args.tracks))
+    collect_midis(base_data_dir, full_collection_dir, args.tracks)
