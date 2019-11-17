@@ -3,6 +3,8 @@ magenta-master/
 
 # Ignore contents of data directories but not directories themselves
 data_raw/*
+logs/*
+!logs/.gitkeep
 !data_raw/.gitkeep
 data_processed/*
 !data_processed/.gitkeep
