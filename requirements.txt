@@ -1,0 +1,3 @@
+tqdm
+music21
+tensorboardX

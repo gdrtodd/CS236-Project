@@ -62,9 +62,6 @@ def encode(stream, highest_note_only=False, trim_silences=True):
 
     flattened = stream.flat
 
-    all_durs = []
-    all_deltas = []
-
     if trim_silences:
         for idx, element in enumerate(flattened):
             if type(element) == m21.note.Note or type(element) == m21.chord.Chord:
@@ -80,10 +77,7 @@ def encode(stream, highest_note_only=False, trim_silences=True):
 
             cur_offset = element.offset - start_offset
 
-            all_deltas.append(Fraction(delta))
-
         duration = get_closest_timing(element.duration.quarterLength)
-
 
         all_durs.append(duration)
         if isinstance(element, m21.note.Note):
