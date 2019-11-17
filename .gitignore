@@ -4,9 +4,12 @@ magenta-master/
 # Ignore contents of data directories but not directories themselves
 data_raw/*
 !data_raw/.gitkeep
-data_processed/*
 !data_processed/.gitkeep
-!data_processed/midis_tracks=Bass.zip
+
+data_processed/midis_tracks=Bass
+data_processed/midis_tracks=Piano
+data_processed/midis_tracks=Bass-Piano
+data_processed/tfrecords/*.tfrecord
 
 # VS-Code Config
 .vscode/
