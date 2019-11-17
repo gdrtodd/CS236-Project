@@ -9,6 +9,8 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
+
+
 class BasslineLSTM(nn.Module):
     def __init__(self, embed_dim, hidden_dim, vocab_size, base_logdir='./logs'):
         #Initialize the module constructor
@@ -22,6 +24,8 @@ class BasslineLSTM(nn.Module):
 
         self.proj = nn.Linear(hidden_dim, vocab_size)
 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
 
 
@@ -32,7 +36,7 @@ class BasslineLSTM(nn.Module):
         logdir_name = '{}_{}_{}'.format(user, date, time)
         full_logdir = os.path.join(base_logdir, logdir_name)
         os.mkdir(full_logdir)
-    
+
         self.logdir = full_logdir
         self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
 
@@ -58,6 +62,8 @@ class BasslineLSTM(nn.Module):
         global_step = 0
         for idx in range(num_epochs):
             for batch in tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)):
+
+                out.to(self.device)
                 out = self.forward(batch)
 
                 # The class dimension needs to go in the middle for the CrossEntropyLoss
@@ -78,5 +84,3 @@ class BasslineLSTM(nn.Module):
                 if global_step%save_interval == 0:
                     checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
                     torch.save(self.state_dict(), checkpoint_name)
-
-
