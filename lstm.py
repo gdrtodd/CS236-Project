@@ -33,6 +33,7 @@ class BasslineLSTM(nn.Module):
         full_logdir = os.path.join(base_logdir, logdir_name)
         os.mkdir(full_logdir)
     
+        self.logdir = full_logdir
         self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
 
     def forward(self, token_ids):
@@ -49,14 +50,14 @@ class BasslineLSTM(nn.Module):
 
         return preds
 
-    def fit(self, dataset, batch_size=8, num_epochs=10):
+    def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000):
         dataloader = DataLoader(dataset, batch_size=8, shuffle=False,
             num_workers=4)
 
         loss_fn = nn.CrossEntropyLoss()
         global_step = 0
         for idx in range(num_epochs):
-            for batch in tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/dataset.seq_len)):
+            for batch in tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)):
                 out = self.forward(batch)
 
                 # The class dimension needs to go in the middle for the CrossEntropyLoss
@@ -73,4 +74,9 @@ class BasslineLSTM(nn.Module):
 
                 self.log_writer.add_scalar("loss", loss, global_step)
                 global_step += 1
+
+                if global_step%save_interval == 0:
+                    checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
+                    torch.save(self.state_dict(), checkpoint_name)
+
 
