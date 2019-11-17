@@ -8,6 +8,7 @@ logs/*
 !data_raw/.gitkeep
 !data_processed/.gitkeep
 
+data_processed/full_midis
 data_processed/midis_tracks=Bass
 data_processed/midis_tracks=Piano
 data_processed/midis_tracks=Bass-Piano
