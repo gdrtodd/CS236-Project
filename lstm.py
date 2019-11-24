@@ -6,37 +6,45 @@ import datetime
 from torch import nn
 from tqdm import tqdm
 import torch.nn.functional as F
+from data_utils import get_vocab
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
 class BasslineLSTM(nn.Module):
-    def __init__(self, embed_dim, hidden_dim, vocab_size, base_logdir='./logs'):
+    def __init__(self, embed_dim, hidden_dim, keep_logs=True, base_logdir='./logs', tracks=None):
         #Initialize the module constructor
         super(BasslineLSTM, self).__init__()
 
-        self.vocab_size = vocab_size
+        self.vocab = get_vocab()
+        self.vocab_size = len(self.vocab)
 
-        self.embedding = nn.Embedding(vocab_size, embed_dim)
+        self.embedding = nn.Embedding(self.vocab_size, embed_dim)
 
         self.lstm = nn.LSTM(embed_dim, hidden_dim)
 
-        self.proj = nn.Linear(hidden_dim, vocab_size)
+        self.proj = nn.Linear(hidden_dim, self.vocab_size)
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
 
+        if keep_logs:
+            user = getpass.getuser().lower()
+            date = str(datetime.datetime.now().date())
+            time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
 
-        user = getpass.getuser().lower()
-        date = str(datetime.datetime.now().date())
-        time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
-
-        logdir_name = '{}_{}_{}'.format(user, date, time)
-        full_logdir = os.path.join(base_logdir, logdir_name)
-        os.mkdir(full_logdir)
-    
-        self.logdir = full_logdir
-        self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
+            logdir_name = '{}_{}_{}'.format(user, date, time)
+            full_logdir = os.path.join(base_logdir, logdir_name)
+            if tracks is not None:
+                full_logdir += "_tracks={}".format(tracks)
+            os.mkdir(full_logdir)
+        
+            self.logdir = full_logdir
+            self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
 
     def forward(self, token_ids):
+        '''
+        Args:
+            token_ids: size is (batch_size, sequence_length)
+        '''
         embeds = self.embedding(token_ids)
 
         # Permute into (seq_len, batch, input_size)
@@ -46,9 +54,9 @@ class BasslineLSTM(nn.Module):
 
         projected = self.proj(lstm_out)
 
-        preds = F.softmax(projected, dim=2)
+        # preds = F.softmax(projected, dim=2)
 
-        return preds
+        return projected
 
     def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000):
         dataloader = DataLoader(dataset, batch_size=8, shuffle=False,
@@ -79,4 +87,43 @@ class BasslineLSTM(nn.Module):
                     checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
                     torch.save(self.state_dict(), checkpoint_name)
 
+    def generate(self, condition=[225, 48], k=40, temperature=1, length=100):
+        batch_size = 1
 
+        self.eval()
+
+        prev = torch.tensor(condition).unsqueeze(0)
+        output = prev
+
+        with torch.no_grad():
+            for i in tqdm(range(length)):
+                logits = self.forward(output)
+
+                # print("Logits shape: ", logits.shape)
+                logits[-1][0] /= temperature
+                # print("Logits shape: ", logits.shape)
+
+                # Take the last logits, and mask all but the top k
+                masked = self.mask_logits(logits[-1], k=k)
+
+                log_probs = F.softmax(masked, dim=1)
+
+                # print("\nMean log probs: ", torch.mean(log_probs[0]))
+                # print("Max log prob: ", torch.max(log_probs[0]))
+                prev = torch.multinomial(log_probs, num_samples=1)
+
+                output = torch.cat((output, prev), dim=1)
+                
+        output = output.cpu().numpy().tolist()[0]
+
+        return [self.vocab[idx] for idx in output]
+
+    def mask_logits(self, logits, k=None):
+        if k is None:
+            return logits
+        else:
+            values = torch.topk(logits, k)[0]
+            batch_mins = values[:, -1].view(-1, 1).expand_as(logits)
+            return torch.where(logits < batch_mins,
+                               torch.ones_like(logits) * -1e10,
+                               logits)
