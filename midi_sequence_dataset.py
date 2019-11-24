@@ -15,7 +15,7 @@ class MIDISequenceDataset(Dataset):
         data_dir = os.path.join(cache_dir, 'midis_tracks={}'.format(tracks))
         save_dir = os.path.join(cache_dir, "token_dataset_tracks={}".format(tracks))
 
-        if not os.path.exists(data_dir):
+        if not os.path.exists(save_dir):
             print("No token cache found, parsing MIDI files from {} ...".format(data_dir))
 
             token_ids = []
