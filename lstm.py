@@ -10,17 +10,17 @@ from data_utils import get_vocab
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
-class BasslineLSTM(nn.Module):
-    def __init__(self, embed_dim, hidden_dim, keep_logs=True, base_logdir='./logs', tracks=None):
+class UnconditionalLSTM(nn.Module):
+    def __init__(self, embed_dim, hidden_dim, vocab_size=128, keep_logs=True, base_logdir='./logs', tracks=None):
         #Initialize the module constructor
-        super(BasslineLSTM, self).__init__()
+        super(UnconditionalLSTM, self).__init__()
 
-        self.vocab = get_vocab()
-        self.vocab_size = len(self.vocab)
+        self.vocab_size = vocab_size
 
-        self.embedding = nn.Embedding(self.vocab_size, embed_dim)
+        self.token_embedding = nn.Embedding(self.vocab_size, embed_dim)
+        self.pos_embedding = nn.Embedding(3, embed_dim)
 
-        self.lstm = nn.LSTM(embed_dim, hidden_dim)
+        self.lstm = nn.LSTM(2 * embed_dim, hidden_dim)
 
         self.proj = nn.Linear(hidden_dim, self.vocab_size)
 
@@ -45,12 +45,21 @@ class BasslineLSTM(nn.Module):
         Args:
             token_ids: size is (batch_size, sequence_length)
         '''
-        embeds = self.embedding(token_ids)
+        batch_size, seq_len = token_ids.shape
+        assert seq_len%3 == 0
 
-        # Permute into (seq_len, batch, input_size)
-        embeds = embeds.permute(1, 0, 2)
+        token_embeds = self.token_embedding(token_ids)
 
-        lstm_out, _ = self.lstm(embeds)
+        # Permute into (seq_len, batch, embed_size)
+        token_embeds = token_embeds.permute(1, 0, 2)
+
+        pos_ids = torch.tensor([0, 1, 2]).repeat(batch_size, seq_len//3)
+        pos_embeds = self.pos_embedding(pos_ids)
+        pos_embeds = pos_embeds.permute(1, 0, 2)
+
+        full_embeds = torch.cat((token_embeds, pos_embeds), dim=2)
+
+        lstm_out, _ = self.lstm(full_embeds)
 
         projected = self.proj(lstm_out)
 
@@ -127,3 +136,10 @@ class BasslineLSTM(nn.Module):
             return torch.where(logits < batch_mins,
                                torch.ones_like(logits) * -1e10,
                                logits)
+
+if __name__ == '__main__':
+    model = UnconditionalLSTM(embed_dim=100, hidden_dim=100)
+
+    token_ids = torch.tensor([[60, 10, 10, 64, 10, 10, 68, 10, 10]])
+
+    output = model(token_ids)
