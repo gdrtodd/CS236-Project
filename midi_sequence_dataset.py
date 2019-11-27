@@ -10,7 +10,10 @@ from data_utils import encode, get_vocab
 
 
 class MIDISequenceDataset(Dataset):
-    def __init__(self, tracks, seq_len=50, multi=True, cache_dir='./data_processed/'):
+    def __init__(self, tracks, seq_len=120, multi=False, cache_dir='./data_processed/'):
+        # The sequence length needs to be divisible by 3 so that the positional encodings
+        # line up properly
+        assert seq_len%3 == 0
         self.seq_len = seq_len
 
         self.data_dir = os.path.join(cache_dir, 'midis_tracks={}'.format(tracks))
@@ -39,8 +42,7 @@ class MIDISequenceDataset(Dataset):
                         skip_count += 1
                         continue
 
-                    string_encoding = encode(stream)
-                    token_id_encoding = [vocab.index(token) for token in string_encoding]
+                    token_id_encoding = encode(stream)
 
                     token_ids += token_id_encoding
 
