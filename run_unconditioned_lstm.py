@@ -20,7 +20,7 @@ if __name__ == '__main__':
     dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len)
 
     lstm = BasslineLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, vocab_size=len(get_vocab()))
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    lstm.to(device)
 
     lstm.fit(dataset, batch_size=args.batch_size)
-
-
