@@ -7,10 +7,11 @@ import multiprocessing
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from data_utils import encode, get_vocab
+from multiprocessing import Pool
 
 
 class MIDISequenceDataset(Dataset):
-    def __init__(self, tracks, seq_len=120, multi=False, cache_dir='./data_processed/'):
+    def __init__(self, tracks, seq_len=120, num_threads=8, cache_dir='./data_processed/'):
         # The sequence length needs to be divisible by 3 so that the positional encodings
         # line up properly
         assert seq_len%3 == 0
@@ -26,14 +27,15 @@ class MIDISequenceDataset(Dataset):
 
             midis = os.listdir(self.data_dir)
 
-            if multi:
-                pool = multiprocessing.Pool()
+            if num_threads > 1:
+                with Pool(num_threads) as pool:
+                    ids_by_midi = list(tqdm(pool.imap(self.midi_to_token_ids, midis), desc='Encoding MIDI streams', total=len(midis)))
 
-                all_ids = pool.map(self.midi_to_token_ids, midis)
+                token_ids = sum(ids_by_midi, [])
 
             else:
                 skip_count = 0
-                for midi_name in tqdm(midis, desc='Parsing MIDIs', total=len(midis)):
+                for midi_name in tqdm(midis, desc='Encoding MIDI streams', total=len(midis)):
                     path = os.path.join(self.data_dir, midi_name)
 
                     try:
@@ -62,7 +64,7 @@ class MIDISequenceDataset(Dataset):
         path = os.path.join(self.data_dir, midi_name)
         try:
             stream = m21.converter.parse(path)
-            encoding = encode(steam)
+            encoding = encode(stream)
 
             return encoding
         except:
