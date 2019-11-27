@@ -31,116 +31,88 @@ def get_vocab(upper_limit=8):
 
     return vocab
 
-def get_closest_timing(timing, upper_limit=8):
+
+
+def get_closest_timing(timing, max_dur=16):
     '''
     Returns the closest allowed timing to a provided value,
-    as a Fraction object
+    as a float
     '''
-    all_timings = []
-    for i in np.arange(0, upper_limit, 0.25):
-        all_timings.append(i)
-
-    for i in np.arange(0, upper_limit*3):
-        if i%3 != 0:
-            all_timings.append(Fraction(i, 3))
+    all_timings = np.arange(0, max_dur, 0.125)
 
     closest_idx = (np.abs(np.asarray(all_timings) - timing)).argmin()
 
-    return Fraction(all_timings[closest_idx])
+    return all_timings[closest_idx]
 
-def encode(stream, highest_note_only=False, trim_silences=True):
-    encoding = ['<start>']
+def get_closest_timing_idx(timing, max_dur=16):
+    all_timings = np.arange(0, max_dur, 0.125)
+    closest_idx = (np.abs(np.asarray(all_timings) - timing)).argmin()
 
-    # The offset value of the current note / rest / chord
-    cur_offset = 0.0
+    return closest_idx
 
-    # The offset value of the first event in the stream. If trim_silences
-    # is set to True, then this will reflect the offset of the first *sound*
-    # in the stream. Its value is subtracted from other offset values when
-    # encoding
-    start_offset = 0.0
+def encode(stream):
+    encoding = []
 
     flattened = stream.flat
 
-    if trim_silences:
-        for idx, element in enumerate(flattened):
-            if type(element) == m21.note.Note or type(element) == m21.chord.Chord:
-                start_offset = element.offset
-                break
+    for idx, element in enumerate(flattened[:-1]):
+        next_element = flattened[idx+1]
+        advance = next_element.offset - element.offset
 
-        flattened = flattened[idx:]
+        duration_idx = get_closest_timing_idx(element.duration.quarterLength)
+        advance_idx = get_closest_timing_idx(advance)
 
-    for element in flattened:
-        if element.offset - start_offset > cur_offset:
-            delta = get_closest_timing(element.offset - start_offset - cur_offset)
-            encoding.append("adv_{}".format(delta))
-
-            cur_offset = element.offset - start_offset
-
-        duration = get_closest_timing(element.duration.quarterLength)
-
-        all_durs.append(duration)
         if isinstance(element, m21.note.Note):
-            encoding.append("on_{}".format(element.pitch.midi))
+            encoding.append(int(element.pitch.midi))            # pitch
+            encoding.append(duration_idx)                       # duration
+            encoding.append(advance_idx)                        # advance
+        # We encode rests as the 0th MIDI note, hopefully it doesn't get used
+        # for real!
+        elif isinstance(element, m21.note.Rest):
+            encoding.append(0)                                  # pitch
+            encoding.append(duration_idx)                       # duration
+            encoding.append(advance_idx)                        # advance
 
         elif isinstance(element, m21.chord.Chord):
-            if highest_note_only:
-                pitch = max(element.pitches)
-                encoding.append("on_{}".format(pitch.midi))
+            # We add a 3-tuple for each note in the chord. For all notes
+            # except the last, the advance should be 0 (so the notes play
+            # simultaneously). For the last note of the chord, the last
+            # advance should be the actual advance index
+            for pitch in element.pitches:
+                encoding.append(int(pitch.midi))                # pitch
+                encoding.append(duration_idx)                   # duration
+                encoding.append(0)                              # advance
 
-            else:
-                for pitch in element.pitches:
-                    encoding.append("on_{}".format(pitch.midi))
-
-        elif isinstance(element, m21.note.Rest):
-            encoding.append("off_note")
-
-        encoding.append("dur_{}".format(duration))
-
-    encoding.append("<end>")
+            # Manually change the last note's advance value
+            encoding[-1] = advance_idx
 
     return encoding
 
 def decode(encoding):
-    # Trim off the <start> and <end> tokens
-    encoding = encoding[1:-1]
+    assert len(encoding)%3 == 0
 
     stream = m21.stream.Stream()
 
+    # The offset value of the current note / rest / chord
     cur_offset = 0.0
-    cur_pitches = []
 
-    for event in encoding:
-        name, extent = event.split('_')
+    all_timings = np.arange(0, 16, 0.125)
 
-        if name == 'on':
-            cur_pitches.append(int(extent))
-        elif name == 'off':
-            cur_pitches.append('r')
-        elif name == 'dur':
-            quarter_duration = Fraction(extent)
-            duration = m21.duration.Duration(quarter_duration)
+    triples = (encoding[i:i+3] for i in range(0, len(encoding), 3))
 
-            if len(cur_pitches) == 1:
-                pitch = cur_pitches[0]
-                if pitch == 'r':
-                    note = m21.note.Rest(duration=duration)
-                else:
-                    note = m21.note.Note(pitch, duration=duration)
+    for pitch, duration_idx, advance_idx in triples:
+        duration = m21.duration.Duration(all_timings[duration_idx])
+        advance = all_timings[advance_idx]
 
-                stream.insert(cur_offset, note)
+        if pitch == 0:
+            note = m21.note.Rest(duration=duration)
+        else:
+            note = m21.note.Note(pitch, duration=duration)
 
-            elif len(cur_pitches) > 1:
-                stream.insert(cur_offset, m21.chord.Chord(cur_pitches, duration=duration))
-
-            cur_pitches = []
-
-        elif name == 'adv':
-            extent = Fraction(extent)
-            cur_offset += extent
+        stream.insert(cur_offset, note)
+        cur_offset += advance
 
     return stream
-
 
 if __name__ == '__main__':
     test_dir = './data_processed/midis_tracks=Piano/TRAACQE12903CC706C-piano.mid'
