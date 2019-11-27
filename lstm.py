@@ -24,6 +24,8 @@ class UnconditionalLSTM(nn.Module):
 
         self.proj = nn.Linear(hidden_dim, self.vocab_size)
 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
 
         if keep_logs:
@@ -36,7 +38,7 @@ class UnconditionalLSTM(nn.Module):
             if tracks is not None:
                 full_logdir += "_tracks={}".format(tracks)
             os.mkdir(full_logdir)
-        
+
             self.logdir = full_logdir
             self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
 
@@ -75,6 +77,8 @@ class UnconditionalLSTM(nn.Module):
         global_step = 0
         for idx in range(num_epochs):
             for batch in tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)):
+
+                out.to(self.device)
                 out = self.forward(batch)
 
                 # The class dimension needs to go in the middle for the CrossEntropyLoss
@@ -122,7 +126,7 @@ class UnconditionalLSTM(nn.Module):
                 prev = torch.multinomial(log_probs, num_samples=1)
 
                 output = torch.cat((output, prev), dim=1)
-                
+
         output = output.cpu().numpy().tolist()[0]
 
         return [self.vocab[idx] for idx in output]
