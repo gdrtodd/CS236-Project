@@ -31,7 +31,9 @@ class MIDISequenceDataset(Dataset):
                 with Pool(num_threads) as pool:
                     ids_by_midi = list(tqdm(pool.imap(self.midi_to_token_ids, midis), desc='Encoding MIDI streams', total=len(midis)))
 
-                token_ids = sum(ids_by_midi, [])
+                token_ids = []
+                for ids in tqdm(ids_by_midi, desc='Adding MIDIs to main encoding', total=len(ids_by_midi)):
+                    token_ids += ids
 
             else:
                 skip_count = 0
@@ -48,7 +50,7 @@ class MIDISequenceDataset(Dataset):
 
                     token_ids += token_id_encoding
 
-            print("\nSkipped {} out of {} files".format(skip_count, len(midis)))
+                print("\nSkipped {} out of {} files".format(skip_count, len(midis)))
 
             self.token_ids = np.array(token_ids, dtype=np.uint16)
 
