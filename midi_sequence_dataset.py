@@ -27,6 +27,8 @@ class MIDISequenceDataset(Dataset):
 
             midis = os.listdir(self.data_dir)
 
+            skip_count = 0
+
             if num_threads > 1:
                 with Pool(num_threads) as pool:
                     ids_by_midi = list(tqdm(pool.imap(self.midi_to_token_ids, midis), desc='Encoding MIDI streams', total=len(midis)))
@@ -34,7 +36,6 @@ class MIDISequenceDataset(Dataset):
                 token_ids = sum(ids_by_midi, [])
 
             else:
-                skip_count = 0
                 for midi_name in tqdm(midis, desc='Encoding MIDI streams', total=len(midis)):
                     path = os.path.join(self.data_dir, midi_name)
 
