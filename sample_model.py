@@ -12,8 +12,8 @@ if __name__ == '__main__':
     parser.add_argument('--logdir', type=str, required=True)
     parser.add_argument('--condition', type=int, nargs='+', required=False, default=[60, 8, 8])
     parser.add_argument('--ckp', type=int, required=False)
-    parser.add_argument('--e_dim', type=int, default=100)
-    parser.add_argument('--h_dim', type=int, default=100)
+    parser.add_argument('--e_dim', type=int, default=200)
+    parser.add_argument('--h_dim', type=int, default=400)
     parser.add_argument('--sample_len', type=int, default=240)
     parser.add_argument('--k', type=int, default=40)
     parser.add_argument('--temp', type=float, default=1)
@@ -27,13 +27,14 @@ if __name__ == '__main__':
     lstm = UnconditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, log_level=0)
 
     # if specified, get specific checkpoint
+    checkpoint_dir = os.path.join(args.logdir, 'checkpoints')
     if args.ckp:
-        full_path = os.path.join(args.logdir, 'model_checkpoint_step_{}.pt'.format(args.ckp))
+        full_path = os.path.join(checkpoint_dir, 'model_checkpoint_step_{}.pt'.format(args.ckp))
         num_steps = args.ckp
 
     # otherwise, get the last checkpoint (alphanumerically sorted)
     else:
-        checkpoints = glob.glob(os.path.join(args.logdir, "*.pt"))
+        checkpoints = glob.glob(os.path.join(checkpoint_dir, "*.pt"))
 
         # model_checkpoint_step_<step_number>.pt --> <step_number>
         step_numbers = np.array(list(map(lambda x: int(x.split(".")[0].split("_")[-1]), checkpoints)))
@@ -53,9 +54,12 @@ if __name__ == '__main__':
     print("Generated sample: ", generation)
     stream = decode(generation)
 
-    num_eval_samples = len(glob.glob(os.path.join(args.logdir, 'eval_sample*')))
+    write_dir = os.path.join(args.logdir, 'eval_samples')
+    if not os.path.exists(write_dir):
+        os.mkdir(write_dir)
 
-    write_dir = os.path.join(args.logdir, 'eval_sample_checkpoint_{}_{}.mid'.format(str(num_steps), num_eval_samples))
+    num_eval_samples = len(glob.glob(os.path.join(write_dir, 'eval_sample*')))
+    output_name = os.path.join(write_dir, 'eval_sample_checkpoint_{}_{}.mid'.format(str(num_steps), num_eval_samples))
 
-    print("Writing sample to {}...".format(write_dir))
-    stream.write('midi', write_dir)
+    print("Writing sample to {}...".format(output_name))
+    stream.write('midi', output_name)
