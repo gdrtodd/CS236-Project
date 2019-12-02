@@ -2,7 +2,6 @@ import music21 as m21
 import numpy as np
 from fractions import Fraction
 from collections import Counter
-import timeout_decorator
 
 
 def get_vocab(upper_limit=8):
@@ -78,29 +77,22 @@ def split_encoding_by_measure(encoding, beats_per_measure=4):
 
     return encodings_by_measure
 
-def encode(stream, display=False):
-
+def encode(stream):
     encoding = []
 
     flattened = stream.flat
 
     for idx, element in enumerate(flattened[:-1]):
-
-        import pdb; pdb.set_trace()
-
-        if display:
-            print(idx)
+        next_element = flattened[idx+1]
+        advance = next_element.offset - element.offset
 
         duration_idx = get_closest_timing_idx(element.duration.quarterLength)
-
-        if advance_idx > duration_idx:
-            advance_idx = duration_idx
+        advance_idx = get_closest_timing_idx(advance)
 
         if isinstance(element, m21.note.Note):
             encoding.append(int(element.pitch.midi))            # pitch
             encoding.append(duration_idx)                       # duration
             encoding.append(advance_idx)                        # advance
-
         # We encode rests as the 0th MIDI note, hopefully it doesn't get used
         # for real!
         elif isinstance(element, m21.note.Rest):
@@ -149,19 +141,11 @@ def decode(encoding):
 
     return stream
 
-@timeout_decorator.timeout(2)
-def m21_timeout_parse(music_file):
-    return m21.converter.parse(music_file)
-
 if __name__ == '__main__':
-    # test_dir = './data_processed/midis_tracks=Piano/TRAACQE12903CC706C-piano.mid'
-    test_dir = './data_processed/final-fantasy_tracks/0fithos.mid'
+    test_dir = './data_processed/midis_tracks=Piano/TRAACQE12903CC706C-piano.mid'
     stream = m21.converter.parse(test_dir)
 
-    enc = encode(stream, display=True)
-    print(enc)
+    enc = encode(stream)
     dec = decode(enc)
 
-    dec.write('midi','test.mid')
-
-    # dec.show('midi')
+    dec.show('midi')
