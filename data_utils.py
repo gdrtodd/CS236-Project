@@ -31,8 +31,6 @@ def get_vocab(upper_limit=8):
 
     return vocab
 
-
-
 def get_closest_timing(timing, max_dur=16):
     '''
     Returns the closest allowed timing to a provided value,
