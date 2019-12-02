@@ -5,6 +5,7 @@ magenta-master/
 data_raw/*
 !data_raw/.gitkeep
 !data_processed/.gitkeep
+logs/
 
 data_processed/full_midis
 data_processed/midis_tracks=Bass

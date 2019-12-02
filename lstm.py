@@ -171,6 +171,8 @@ class UnconditionalLSTM(nn.Module):
                 
         output = output.cpu().numpy().tolist()[0]
 
+        self.train()
+
         return output
 
     def mask_logits(self, logits, k=None):

@@ -23,13 +23,14 @@ if __name__ == '__main__':
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    lstm = UnconditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, keep_logs=False)
+    lstm = UnconditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim)
 
     logdir = os.path.join(args.logdir)
 
     # if specified, get specific checkpoint
     if args.ckp:
         full_path = os.path.join(logdir, 'model_checkpoint_step_{}.pt'.format(args.ckp))
+        num_steps = args.ckp
 
     # otherwise, get the last checkpoint (alphanumerically sorted)
     else:
@@ -38,6 +39,7 @@ if __name__ == '__main__':
         # model_checkpoint_step_<step_number>.pt --> <step_number>
         step_numbers = np.array(list(map(lambda x: int(x.split(".")[0].split("_")[-1]), checkpoints)))
         sort_order = np.argsort(step_numbers)
+        num_steps = step_numbers[sort_order[-1]]
 
         # gets the checkpoint path with the greatest number of steps
         last_checkpoint_path = checkpoints[sort_order[-1]]
@@ -52,5 +54,9 @@ if __name__ == '__main__':
     print("GENERATED SAMPLE: ", generation)
     stream = decode(generation)
 
-    stream.write('midi', os.path.join(logdir, 'sample-{}.mid'.format(str(time.time()))))
+    write_dir = os.path.join(logdir, 'sample_steps_{}_{}.mid'.format(str(num_steps), time.strftime("%Y-%m-%d_%H-%M-%S")))
+
+    print("Writing sample to: ", write_dir)
+
+    stream.write('midi', write_dir)
     # stream.show('midi')
