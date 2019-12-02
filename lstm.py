@@ -4,6 +4,7 @@ import torch
 import shutil
 import getpass
 import datetime
+import numpy as np
 from torch import nn
 from tqdm import tqdm
 import torch.nn.functional as F
@@ -12,7 +13,12 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
 class UnconditionalLSTM(nn.Module):
-    def __init__(self, embed_dim, hidden_dim, vocab_size=128, logdir='test', tracks=None):
+    '''
+    LOG LEVEL 0: no logs of any kind
+    LOG LEVEL 1: write logs to ./logs/debug
+    LOG LEVEL 2: write logs to new directory w/ username & time
+    '''
+    def __init__(self, embed_dim, hidden_dim, num_layers=2, dropout=0.5, vocab_size=128, tracks=None, log_level=0):
         #Initialize the module constructor
         super(UnconditionalLSTM, self).__init__()
 
@@ -20,38 +26,55 @@ class UnconditionalLSTM(nn.Module):
 
         self.vocab_size = vocab_size
 
+        # Encodes the (pitch, dur, adv) tuples
         self.token_embedding = nn.Embedding(self.vocab_size, embed_dim)
+
+        # Encodes the position within each tuple, i.e. [0, 1, 2, 0, 1, 2, ...]
         self.pos_embedding = nn.Embedding(3, embed_dim)
 
-        self.lstm = nn.LSTM(2 * embed_dim, hidden_dim, num_layers=3, dropout=0.3)
+        # NOTE: input dimension is 2 * embed_dim because we have embeddings for both
+        # the token IDs and the positional IDs
+        self.lstm = nn.LSTM(2 * embed_dim, hidden_dim, num_layers=num_layers, dropout=dropout)
 
         self.proj = nn.Linear(hidden_dim, self.vocab_size)
 
-        # self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
-        if logdir is not None:
-            base_logdir='./logs'
+        base_logdir='./logs'
 
-            if logdir == 'test':
-                full_logdir = os.path.join(base_logdir, 'test')
+        if log_level==1:
+            full_logdir = os.path.join(base_logdir, 'debug')
 
-                if os.path.exists(full_logdir):
-                    # Clear out the test directory
-                    shutil.rmtree(full_logdir)
+            if os.path.exists(full_logdir):
+                # Clear out the test directory
+                shutil.rmtree(full_logdir)
 
-                os.mkdir(full_logdir)
-            else:
-                user = getpass.getuser().lower()
-                date = str(datetime.datetime.now().date())
-                time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
+            os.mkdir(full_logdir)
 
-                logdir_name = '{}_{}_{}'.format(user, date, time)
-                full_logdir = os.path.join(base_logdir, logdir_name)
-                if tracks is not None:
-                    full_logdir += "_tracks={}".format(tracks)
-                os.mkdir(full_logdir)
+            self.logdir = full_logdir
+            self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
+
+        elif log_level==2:
+            user = getpass.getuser().lower()
+            date = str(datetime.datetime.now().date())
+            time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
+
+            logdir_name = '{}_{}_{}'.format(user, date, time)
+            full_logdir = os.path.join(base_logdir, logdir_name)
+            if tracks is not None:
+                full_logdir += "_tracks={}".format(tracks)
+            os.mkdir(full_logdir)             
         
+            args_string = "Embed dimension: {}" + \
+                          "\nHidden dimension: {}" + \
+                          "\nNum layers: {}" + \
+                          "\nDropout: {}" + \
+                          "\nTracks: {}"
+            args_string = args_string.format(embed_dim, hidden_dim, num_layers, dropout, tracks)
+
+            with open(os.path.join(full_logdir, 'args.txt'), 'w') as file:
+                file.write(args_string)
+
             self.logdir = full_logdir
             self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
 
@@ -80,8 +103,6 @@ class UnconditionalLSTM(nn.Module):
 
         projected = self.proj(lstm_out)
 
-        # preds = F.softmax(projected, dim=2)
-
         return projected
 
     def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000):
@@ -91,10 +112,9 @@ class UnconditionalLSTM(nn.Module):
         loss_fn = nn.CrossEntropyLoss()
         global_step = 0
         for idx in range(num_epochs):
-            with tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)) as t:
-                for batch in t:
+            with tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)) as progbar:
+                for batch in progbar:
 
-                    # import pdb; pdb.set_trace()
                     batch = batch.to(self.device)
 
                     inputs, labels = batch[:, :-1], batch[:, 1:]
@@ -108,7 +128,7 @@ class UnconditionalLSTM(nn.Module):
                     labels = labels.permute(1, 0)
 
                     loss = loss_fn(out, labels)
-                    t.set_postfix(Loss=loss.item())
+                    progbar.set_postfix(Loss=loss.item())
 
                     loss.backward()
                     self.optimizer.step()
@@ -124,19 +144,22 @@ class UnconditionalLSTM(nn.Module):
         self.save_checkpoint(global_step, generate_sample=True)
 
     def save_checkpoint(self, global_step, generate_sample=False):
+        '''
+        Saves the model state dict, and will generate a sample if specified
+        '''
         checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
         torch.save(self.state_dict(), checkpoint_name)
 
         if generate_sample:
-            generation = self.generate(length=120, greedy=False)
-            print(generation)
+            generation = self.generate(length=120)
             stream = decode(generation)
-            stream.write('midi', os.path.join(self.logdir,
-                                              'sample_checkpoint_step_{}.mid'.format(global_step)))
+            stream.write('midi', os.path.join(self.logdir, 'sample_checkpoint_step_{}.mid'.format(global_step)))
 
-    def generate(self, condition=[60, 8, 8], k=None, temperature=1, length=100, greedy=False):
-        # if k is none, infer keep from logits size
-
+    def generate(self, condition=[60, 8, 8], k=None, temperature=1, length=100):
+        '''
+        If 'k' is None: sample over all tokens in vocabulary
+        If temperature == 0: perform greedy generation
+        '''
         # remove regularization for generation
         self.eval()
 
@@ -150,21 +173,17 @@ class UnconditionalLSTM(nn.Module):
                 logits = self.forward(output)
                 logits = logits.to(self.device)
 
-                if greedy:
+                if temperature == 0:
                     prev = torch.argmax(logits[-1][0]).reshape(1, 1)
 
                 else:
-                    # print("Logits shape: ", logits.shape)
                     logits[-1][0] /= temperature
-                    # print("Logits shape: ", logits.shape)
 
                     # Take the last logits, and mask all but the top k
                     masked = self.mask_logits(logits[-1], k=k)
 
                     log_probs = F.softmax(masked, dim=1)
 
-                    # print("\nMean log probs: ", torch.mean(log_probs[0]))
-                    # print("Max log prob: ", torch.max(log_probs[0]))
                     prev = torch.multinomial(log_probs, num_samples=1)
 
                 output = torch.cat((output, prev), dim=1)
@@ -184,29 +203,6 @@ class UnconditionalLSTM(nn.Module):
             return torch.where(logits < batch_mins,
                                torch.ones_like(logits) * -1e10,
                                logits)
-
-    def evaluate_sample(self, generation, dataset):
-
-
-        with torch.no_grad():
-
-            seq_length = len(generation)
-
-            generation = torch.tensor(generation).reshape(1, seq_length)
-            # The class dimension needs to go in the middle for the CrossEntropyLoss
-            generation_logits = self.forward(generation).permute(0, 2, 1)
-            generation_logits = generation_logits[: seq_length,:,:]
-            # Get the original seq_length tokens
-
-            # Needs to be (batch, additional_dims)
-            labels = dataset[0].reshape(seq_length, 1)
-
-            import pdb; pdb.set_trace()
-
-            loss_fn = nn.CrossEntropyLoss()
-            loss = loss_fn(generation_logits, labels)
-
-            return loss
 
 
 if __name__ == '__main__':
