@@ -47,8 +47,7 @@ class MIDISequenceDataset(Dataset):
                     path = os.path.join(self.data_dir, midi_name)
 
                     try:
-                        stream = m21_timeout_parse(path)
-                        # stream = m21.converter.parse(path)
+                        stream = m21.converter.parse(path)
                     except:
                         print("Skipping {} because it took too long to parse".format(midi_name))
                         skip_count += 1
@@ -73,8 +72,7 @@ class MIDISequenceDataset(Dataset):
     def midi_to_token_ids(self, midi_name):
         path = os.path.join(self.data_dir, midi_name)
         try:
-            stream = m21_timeout_parse(path)
-            # stream = m21.converter.parse(path)
+            stream = m21.converter.parse(path)
             encoding = encode(stream)
 
             return encoding
