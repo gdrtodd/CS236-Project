@@ -144,8 +144,8 @@ class UnconditionalLSTM(nn.Module):
                     if global_step%save_interval == 0:
                         self.save_checkpoint(global_step, generate_sample=True)
 
-        # ensure save after fit
-        self.save_checkpoint(global_step, generate_sample=True)
+            # save after each epoch
+            self.save_checkpoint(global_step, generate_sample=True)
 
     def save_checkpoint(self, global_step, generate_sample=False):
         '''
