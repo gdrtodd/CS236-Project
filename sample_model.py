@@ -14,18 +14,17 @@ if __name__ == '__main__':
     parser.add_argument('--ckp', type=int, required=False)
     parser.add_argument('--e_dim', type=int, default=100)
     parser.add_argument('--h_dim', type=int, default=100)
-    parser.add_argument('--sample_len', type=int, default=120)
+    parser.add_argument('--sample_len', type=int, default=240)
     parser.add_argument('--k', type=int, default=40)
-    parser.add_argument('--temp', type=float, default=2)
-    parser.add_argument('--greedy', type=bool, default=False)
+    parser.add_argument('--temp', type=float, default=1)
+
+    # NOTE: if --temp == 0, then we perform greedy generation
 
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    lstm = UnconditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim)
-
-    logdir = os.path.join(args.logdir)
+    lstm = UnconditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, log_level=0)
 
     # if specified, get specific checkpoint
     if args.ckp:
@@ -45,18 +44,15 @@ if __name__ == '__main__':
         last_checkpoint_path = checkpoints[sort_order[-1]]
         full_path = last_checkpoint_path
 
-    print(full_path)
-
+    print("Loading model weights from {}...".format(full_path))
     lstm.load_state_dict(torch.load(full_path, map_location=device))
 
-    generation = lstm.generate(condition=args.condition, k=None, length=args.sample_len, temperature=args.temp, greedy=args.greedy)
+    generation = lstm.generate(condition=args.condition, k=None, length=args.sample_len, temperature=args.temp)
 
-    print("GENERATED SAMPLE: ", generation)
+    print("Generated sample: ", generation)
     stream = decode(generation)
 
     write_dir = os.path.join(logdir, 'sample_steps_{}_{}.mid'.format(str(num_steps), time.strftime("%Y-%m-%d_%H-%M-%S")))
 
-    print("Writing sample to: ", write_dir)
-
+    print("Writing sample to {}...".format(write_dir))
     stream.write('midi', write_dir)
-    # stream.show('midi')
