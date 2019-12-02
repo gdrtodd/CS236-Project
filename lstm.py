@@ -153,7 +153,7 @@ class UnconditionalLSTM(nn.Module):
         if generate_sample:
             generation = self.generate(length=120)
             stream = decode(generation)
-            stream.write('midi', os.path.join(self.logdir, 'sample_checkpoint_step_{}.mid'.format(global_step)))
+            stream.write('midi', os.path.join(self.logdir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
 
     def generate(self, condition=[60, 8, 8], k=None, temperature=1, length=100):
         '''
