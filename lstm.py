@@ -1,18 +1,18 @@
 import os
 import math
 import torch
+import shutil
 import getpass
 import datetime
 from torch import nn
 from tqdm import tqdm
 import torch.nn.functional as F
-# from data_utils import get_vocab
 from data_utils import decode
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
 class UnconditionalLSTM(nn.Module):
-    def __init__(self, embed_dim, hidden_dim, vocab_size=128, keep_logs=True, base_logdir='./logs', tracks=None):
+    def __init__(self, embed_dim, hidden_dim, vocab_size=128, logdir='test', tracks=None):
         #Initialize the module constructor
         super(UnconditionalLSTM, self).__init__()
 
@@ -30,16 +30,27 @@ class UnconditionalLSTM(nn.Module):
         # self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
-        if keep_logs:
-            user = getpass.getuser().lower()
-            date = str(datetime.datetime.now().date())
-            time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
+        if logdir is not None:
+            base_logdir='./logs'
 
-            logdir_name = '{}_{}_{}'.format(user, date, time)
-            full_logdir = os.path.join(base_logdir, logdir_name)
-            if tracks is not None:
-                full_logdir += "_tracks={}".format(tracks)
-            os.mkdir(full_logdir)
+            if logdir == 'test':
+                full_logdir = os.path.join(base_logdir, 'test')
+
+                if os.path.exists(full_logdir):
+                    # Clear out the test directory
+                    shutil.rmtree(full_logdir)
+
+                os.mkdir(full_logdir)
+            else:
+                user = getpass.getuser().lower()
+                date = str(datetime.datetime.now().date())
+                time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
+
+                logdir_name = '{}_{}_{}'.format(user, date, time)
+                full_logdir = os.path.join(base_logdir, logdir_name)
+                if tracks is not None:
+                    full_logdir += "_tracks={}".format(tracks)
+                os.mkdir(full_logdir)
         
             self.logdir = full_logdir
             self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
