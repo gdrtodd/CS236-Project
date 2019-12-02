@@ -75,11 +75,9 @@ class UnconditionalLSTM(nn.Module):
         if logdir is not None:
             self.logdir = logdir
             self.train_sample_dir = os.path.join(self.logdir, 'train_samples')
-            self.eval_sample_dir = os.path.join(self.logdir, 'eval_samples')
             self.checkpoints_dir = os.path.join(self.logdir, 'checkpoints')
 
             os.mkdir(self.train_sample_dir)
-            os.mkdir(self.eval_sample_dir)
             os.mkdir(self.checkpoints_dir)
 
             self.log_writer = SummaryWriter(self.logdir, flush_secs=100)
@@ -153,13 +151,13 @@ class UnconditionalLSTM(nn.Module):
         '''
         Saves the model state dict, and will generate a sample if specified
         '''
-        checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
+        checkpoint_name = os.path.join(self.checkpoints_dir, "model_checkpoint_step_{}.pt".format(global_step))
         torch.save(self.state_dict(), checkpoint_name)
 
         if generate_sample:
             generation = self.generate(length=120)
             stream = decode(generation)
-            stream.write('midi', os.path.join(self.logdir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
+            stream.write('midi', os.path.join(self.train_sample_dir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
 
     def generate(self, condition=[60, 8, 8], k=None, temperature=1, length=100):
         '''
@@ -174,7 +172,7 @@ class UnconditionalLSTM(nn.Module):
         output = prev
 
         with torch.no_grad():
-            for i in tqdm(range(length)):
+            for i in tqdm(range(length), leave=False):
 
                 logits = self.forward(output)
                 logits = logits.to(self.device)
