@@ -28,15 +28,16 @@ if __name__ == '__main__':
 
     # if specified, get specific checkpoint
     if args.ckp:
-        full_path = os.path.join(logdir, 'model_checkpoint_step_{}.pt'.format(args.ckp))
+        full_path = os.path.join(args.logdir, 'model_checkpoint_step_{}.pt'.format(args.ckp))
         num_steps = args.ckp
 
     # otherwise, get the last checkpoint (alphanumerically sorted)
     else:
-        checkpoints = glob.glob(os.path.join(logdir, "*.pt"))
+        checkpoints = glob.glob(os.path.join(args.logdir, "*.pt"))
 
         # model_checkpoint_step_<step_number>.pt --> <step_number>
         step_numbers = np.array(list(map(lambda x: int(x.split(".")[0].split("_")[-1]), checkpoints)))
+
         sort_order = np.argsort(step_numbers)
         num_steps = step_numbers[sort_order[-1]]
 
@@ -52,7 +53,9 @@ if __name__ == '__main__':
     print("Generated sample: ", generation)
     stream = decode(generation)
 
-    write_dir = os.path.join(logdir, 'sample_steps_{}_{}.mid'.format(str(num_steps), time.strftime("%Y-%m-%d_%H-%M-%S")))
+    num_eval_samples = len(glob.glob(os.path.join(args.logdir, 'eval_sample*')))
+
+    write_dir = os.path.join(args.logdir, 'eval_sample_checkpoint_{}_{}.mid'.format(str(num_steps), num_eval_samples))
 
     print("Writing sample to {}...".format(write_dir))
     stream.write('midi', write_dir)
