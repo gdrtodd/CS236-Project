@@ -18,7 +18,7 @@ class UnconditionalLSTM(nn.Module):
     LOG LEVEL 1: write logs to ./logs/debug
     LOG LEVEL 2: write logs to new directory w/ username & time
     '''
-    def __init__(self, embed_dim, hidden_dim, num_layers=2, dropout=0.5, vocab_size=128, tracks=None, log_level=0):
+    def __init__(self, embed_dim, hidden_dim, num_layers=2, dropout=0.5, vocab_size=128, log_level=0, log_suffix=None):
         #Initialize the module constructor
         super(UnconditionalLSTM, self).__init__()
 
@@ -40,19 +40,14 @@ class UnconditionalLSTM(nn.Module):
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
-        base_logdir='./logs'
-
+        logdir = None
         if log_level==1:
-            full_logdir = os.path.join(base_logdir, 'debug')
+            logdir = './logs/debug'
+            # Clear out the debug directory
+            if os.path.exists(logdir):
+                shutil.rmtree(logdir)
 
-            if os.path.exists(full_logdir):
-                # Clear out the test directory
-                shutil.rmtree(full_logdir)
-
-            os.mkdir(full_logdir)
-
-            self.logdir = full_logdir
-            self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
+            os.mkdir(logdir)
 
         elif log_level==2:
             user = getpass.getuser().lower()
@@ -60,23 +55,34 @@ class UnconditionalLSTM(nn.Module):
             time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
 
             logdir_name = '{}_{}_{}'.format(user, date, time)
-            full_logdir = os.path.join(base_logdir, logdir_name)
-            if tracks is not None:
-                full_logdir += "_tracks={}".format(tracks)
-            os.mkdir(full_logdir)             
+            logdir = os.path.join('./logs', logdir_name)
+            if log_suffix is not None:
+                logdir += log_suffix
+            os.mkdir(logdir)           
         
             args_string = "Embed dimension: {}" + \
                           "\nHidden dimension: {}" + \
                           "\nNum layers: {}" + \
-                          "\nDropout: {}" + \
-                          "\nTracks: {}"
-            args_string = args_string.format(embed_dim, hidden_dim, num_layers, dropout, tracks)
+                          "\nDropout: {}"
+            args_string = args_string.format(embed_dim, hidden_dim, num_layers, dropout)
 
-            with open(os.path.join(full_logdir, 'args.txt'), 'w') as file:
+            with open(os.path.join(logdir, 'args.txt'), 'w') as file:
                 file.write(args_string)
 
-            self.logdir = full_logdir
-            self.log_writer = SummaryWriter(full_logdir, flush_secs=100)
+        self.prepare_logdir(logdir)
+
+    def prepare_logdir(self, logdir=None):
+        if logdir is not None:
+            self.logdir = logdir
+            self.train_sample_dir = os.path.join(self.logdir, 'train_samples')
+            self.eval_sample_dir = os.path.join(self.logdir, 'eval_samples')
+            self.checkpoints_dir = os.path.join(self.logdir, 'checkpoints')
+
+            os.mkdir(self.train_sample_dir)
+            os.mkdir(self.eval_sample_dir)
+            os.mkdir(self.checkpoints_dir)
+
+            self.log_writer = SummaryWriter(self.logdir, flush_secs=100)
 
     def forward(self, token_ids):
         '''
