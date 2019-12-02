@@ -34,8 +34,13 @@ if __name__ == '__main__':
     # otherwise, get the last checkpoint (alphanumerically sorted)
     else:
         checkpoints = glob.glob(os.path.join(logdir, "*.pt"))
-        checkpoints.sort()
-        last_checkpoint_path = checkpoints[-1]
+
+        # model_checkpoint_step_<step_number>.pt --> <step_number>
+        step_numbers = np.array(list(map(lambda x: int(x.split(".")[0].split("_")[-1]), checkpoints)))
+        sort_order = np.argsort(step_numbers)
+
+        # gets the checkpoint path with the greatest number of steps
+        last_checkpoint_path = checkpoints[sort_order[-1]]
         full_path = last_checkpoint_path
 
     print(full_path)
