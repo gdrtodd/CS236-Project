@@ -6,7 +6,8 @@ import datetime
 from torch import nn
 from tqdm import tqdm
 import torch.nn.functional as F
-from data_utils import get_vocab
+# from data_utils import get_vocab
+from data_utils import decode
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
@@ -15,16 +16,19 @@ class UnconditionalLSTM(nn.Module):
         #Initialize the module constructor
         super(UnconditionalLSTM, self).__init__()
 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
         self.vocab_size = vocab_size
 
         self.token_embedding = nn.Embedding(self.vocab_size, embed_dim)
         self.pos_embedding = nn.Embedding(3, embed_dim)
 
-        self.lstm = nn.LSTM(2 * embed_dim, hidden_dim)
+        self.lstm = nn.LSTM(2 * embed_dim, hidden_dim, num_layers=3, dropout=0.3)
 
         self.proj = nn.Linear(hidden_dim, self.vocab_size)
 
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
+        # self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
 
         if keep_logs:
             user = getpass.getuser().lower()
@@ -55,9 +59,9 @@ class UnconditionalLSTM(nn.Module):
         # The position ids are just 0, 1, and 2 repeated for as long
         # as the sequence length
         pos_ids = torch.tensor([0, 1, 2]).repeat(batch_size, math.ceil(seq_len/3))[:, :seq_len]
+        pos_ids = pos_ids.to(self.device)
         pos_embeds = self.pos_embedding(pos_ids)
         pos_embeds = pos_embeds.permute(1, 0, 2)
-
 
         full_embeds = torch.cat((token_embeds, pos_embeds), dim=2)
 
@@ -70,58 +74,80 @@ class UnconditionalLSTM(nn.Module):
         return projected
 
     def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000):
-        dataloader = DataLoader(dataset, batch_size=8, shuffle=False,
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
             num_workers=4)
 
         loss_fn = nn.CrossEntropyLoss()
         global_step = 0
         for idx in range(num_epochs):
-            for batch in tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)):
-                out = self.forward(batch)
+            with tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)) as t:
+                for batch in t:
 
-                # The class dimension needs to go in the middle for the CrossEntropyLoss
-                out = out.permute(0, 2, 1)
+                    batch = batch.to(self.device)
 
-                # And the labes need to be (batch, additional_dims)
-                labels = batch.permute(1, 0)
+                    out = self.forward(batch)
 
-                loss = loss_fn(out, labels)
+                    # The class dimension needs to go in the middle for the CrossEntropyLoss
+                    out = out.permute(0, 2, 1)
 
-                loss.backward()
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+                    # And the labes need to be (batch, additional_dims)
+                    labels = batch.permute(1, 0)
 
-                self.log_writer.add_scalar("loss", loss, global_step)
-                global_step += 1
+                    loss = loss_fn(out, labels)
+                    t.set_postfix(Loss=loss.item())
 
-                if global_step%save_interval == 0:
-                    checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
-                    torch.save(self.state_dict(), checkpoint_name)
+                    loss.backward()
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
 
-    def generate(self, condition=[60, 8, 8], k=40, temperature=1, length=100):
+                    self.log_writer.add_scalar("loss", loss, global_step)
+                    global_step += 1
+
+                    if global_step%save_interval == 0:
+                        checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
+                        torch.save(self.state_dict(), checkpoint_name)
+
+        # ensure save after fit
+        checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
+        torch.save(self.state_dict(), checkpoint_name)
+
+        generation = self.generate(k=None, length=120, greedy=False)
+        print(generation)
+        stream = decode(generation)
+        stream.write('midi', os.path.join(self.logdir, 'final_sample.mid'))
+
+    def generate(self, condition=[60, 8, 8], k=40, temperature=1, length=100, greedy=False):
         batch_size = 1
 
+        # remove regularization for generation
         self.eval()
 
         prev = torch.tensor(condition).unsqueeze(0)
+        prev = prev.to(self.device)
         output = prev
 
         with torch.no_grad():
             for i in tqdm(range(length)):
+
                 logits = self.forward(output)
+                logits = logits.to(self.device)
 
-                # print("Logits shape: ", logits.shape)
-                logits[-1][0] /= temperature
-                # print("Logits shape: ", logits.shape)
+                if greedy:
+                    prev = torch.argmax(logits[-1][0]).reshape(1, 1)
 
-                # Take the last logits, and mask all but the top k
-                masked = self.mask_logits(logits[-1], k=k)
+                else:
+                    # print("Logits shape: ", logits.shape)
+                    logits[-1][0] /= temperature
+                    # print("Logits shape: ", logits.shape)
 
-                log_probs = F.softmax(masked, dim=1)
+                    # Take the last logits, and mask all but the top k
+                    masked = self.mask_logits(logits[-1], k=k)
 
-                # print("\nMean log probs: ", torch.mean(log_probs[0]))
-                # print("Max log prob: ", torch.max(log_probs[0]))
-                prev = torch.multinomial(log_probs, num_samples=1)
+                    log_probs = F.softmax(masked, dim=1)
+
+                    # print("\nMean log probs: ", torch.mean(log_probs[0]))
+                    # print("Max log prob: ", torch.max(log_probs[0]))
+                    prev = torch.multinomial(log_probs, num_samples=1)
 
                 output = torch.cat((output, prev), dim=1)
                 
