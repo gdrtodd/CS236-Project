@@ -6,7 +6,7 @@ import music21 as m21
 import multiprocessing
 from tqdm import tqdm
 from torch.utils.data import Dataset
-from data_utils import encode, get_vocab, m21_timeout_parse
+from data_utils import encode, get_vocab
 from multiprocessing import Pool
 
 
