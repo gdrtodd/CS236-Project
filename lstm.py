@@ -83,15 +83,18 @@ class UnconditionalLSTM(nn.Module):
             with tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)) as t:
                 for batch in t:
 
+                    # import pdb; pdb.set_trace()
                     batch = batch.to(self.device)
 
-                    out = self.forward(batch)
+                    inputs, labels = batch[:, :-1], batch[:, 1:]
+
+                    out = self.forward(inputs)
 
                     # The class dimension needs to go in the middle for the CrossEntropyLoss
                     out = out.permute(0, 2, 1)
 
-                    # And the labes need to be (batch, additional_dims)
-                    labels = batch.permute(1, 0)
+                    # And the labels need to be (batch, additional_dims)
+                    labels = labels.permute(1, 0)
 
                     loss = loss_fn(out, labels)
                     t.set_postfix(Loss=loss.item())
@@ -164,6 +167,30 @@ class UnconditionalLSTM(nn.Module):
             return torch.where(logits < batch_mins,
                                torch.ones_like(logits) * -1e10,
                                logits)
+
+    def evaluate_sample(self, generation, dataset):
+
+
+        with torch.no_grad():
+
+            seq_length = len(generation)
+
+            generation = torch.tensor(generation).reshape(1, seq_length)
+            # The class dimension needs to go in the middle for the CrossEntropyLoss
+            generation_logits = self.forward(generation).permute(0, 2, 1)
+            generation_logits = generation_logits[: seq_length,:,:]
+            # Get the original seq_length tokens
+
+            # Needs to be (batch, additional_dims)
+            labels = dataset[0].reshape(seq_length, 1)
+
+            import pdb; pdb.set_trace()
+
+            loss_fn = nn.CrossEntropyLoss()
+            loss = loss_fn(generation_logits, labels)
+
+            return loss
+
 
 if __name__ == '__main__':
     model = UnconditionalLSTM(embed_dim=100, hidden_dim=100)

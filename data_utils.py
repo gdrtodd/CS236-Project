@@ -86,14 +86,12 @@ def encode(stream, display=False):
 
     for idx, element in enumerate(flattened[:-1]):
 
+        import pdb; pdb.set_trace()
+
         if display:
             print(idx)
 
-        next_element = flattened[idx+1]
-        advance = next_element.offset - element.offset
-
         duration_idx = get_closest_timing_idx(element.duration.quarterLength)
-        advance_idx = get_closest_timing_idx(advance)
 
         if advance_idx > duration_idx:
             advance_idx = duration_idx

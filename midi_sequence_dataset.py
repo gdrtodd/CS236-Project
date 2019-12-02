@@ -17,7 +17,7 @@ class MIDISequenceDataset(Dataset):
         assert seq_len%3 == 0
         self.seq_len = seq_len
 
-        if dataset == "lahk":
+        if dataset == "lakh":
             self.data_dir = os.path.join(cache_dir, 'midis_tracks={}'.format(tracks))
             self.save_dir = os.path.join(cache_dir, "token_dataset_tracks={}".format(tracks))
         else:  # dataset == "maestro"
