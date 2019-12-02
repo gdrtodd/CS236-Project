@@ -107,20 +107,24 @@ class UnconditionalLSTM(nn.Module):
                     global_step += 1
 
                     if global_step%save_interval == 0:
-                        checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
-                        torch.save(self.state_dict(), checkpoint_name)
+                        self.save_checkpoint(global_step, generate_sample=True)
 
         # ensure save after fit
+        self.save_checkpoint(global_step, generate_sample=True)
+
+    def save_checkpoint(self, global_step, generate_sample=False):
         checkpoint_name = os.path.join(self.logdir, "model_checkpoint_step_{}.pt".format(global_step))
         torch.save(self.state_dict(), checkpoint_name)
 
-        generation = self.generate(k=None, length=120, greedy=False)
-        print(generation)
-        stream = decode(generation)
-        stream.write('midi', os.path.join(self.logdir, 'final_sample.mid'))
+        if generate_sample:
+            generation = self.generate(length=120, greedy=False)
+            print(generation)
+            stream = decode(generation)
+            stream.write('midi', os.path.join(self.logdir,
+                                              'sample_checkpoint_step_{}.mid'.format(global_step)))
 
-    def generate(self, condition=[60, 8, 8], k=40, temperature=1, length=100, greedy=False):
-        batch_size = 1
+    def generate(self, condition=[60, 8, 8], k=None, temperature=1, length=100, greedy=False):
+        # if k is none, infer keep from logits size
 
         # remove regularization for generation
         self.eval()
