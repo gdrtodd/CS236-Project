@@ -78,7 +78,7 @@ def split_encoding_by_measure(encoding, beats_per_measure=4):
 
     return encodings_by_measure
 
-def encode(stream, display=False):
+def encode(stream):
 
     encoding = []
 
@@ -86,15 +86,7 @@ def encode(stream, display=False):
 
     for idx, element in enumerate(flattened[:-1]):
 
-        import pdb; pdb.set_trace()
-
-        if display:
-            print(idx)
-
         duration_idx = get_closest_timing_idx(element.duration.quarterLength)
-
-        if advance_idx > duration_idx:
-            advance_idx = duration_idx
 
         if isinstance(element, m21.note.Note):
             encoding.append(int(element.pitch.midi))            # pitch
