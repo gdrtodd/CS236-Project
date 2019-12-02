@@ -59,7 +59,10 @@ if __name__ == '__main__':
         os.mkdir(write_dir)
 
     num_eval_samples = len(glob.glob(os.path.join(write_dir, 'eval_sample*')))
-    output_name = os.path.join(write_dir, 'eval_sample_checkpoint_{}_{}.mid'.format(str(num_steps), num_eval_samples))
+    output_name = os.path.join(write_dir,
+                               'eval_sample_checkpoint_{}_temp_{}_num_{}.mid'.format(str(num_steps),
+                                                                                 str(args.temp).replace('.', '-'),
+                                                                                 num_eval_samples))
 
     print("Writing sample to {}...".format(output_name))
     stream.write('midi', output_name)
