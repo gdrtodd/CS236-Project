@@ -6,7 +6,7 @@ import music21 as m21
 import multiprocessing
 from tqdm import tqdm
 from torch.utils.data import Dataset
-from data_utils import encode, get_vocab, m21_timeout_parse
+from data_utils import encode, get_vocab
 from multiprocessing import Pool
 
 
@@ -52,8 +52,7 @@ class MIDISequenceDataset(Dataset):
                     path = os.path.join(self.data_dir, midi_name)
 
                     try:
-                        stream = m21_timeout_parse(path)
-                        # stream = m21.converter.parse(path)
+                        stream = m21.converter.parse(path)
                     except:
                         print("Skipping {} because it took too long to parse".format(midi_name))
                         skip_count += 1
@@ -78,8 +77,8 @@ class MIDISequenceDataset(Dataset):
     def midi_to_token_ids(self, midi_name):
         path = os.path.join(self.data_dir, midi_name)
         try:
-            stream = m21_timeout_parse(path)
-            encoding, measures = encode(stream)
+            stream = m21.converter.parse(path)
+            encoding = encode(stream)
 
             return encoding, measures
         except:
@@ -109,4 +108,3 @@ if __name__ == "__main__":
         tracks = None
 
     dataset = MIDISequenceDataset(tracks, num_threads=args.threads, dataset=args.dataset)
-    
