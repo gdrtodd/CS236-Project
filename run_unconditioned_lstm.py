@@ -8,9 +8,9 @@ from data_utils import get_vocab
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, required=False, default="lakh",
+    parser.add_argument('--dataset', type=str, default="lakh",
                         choices=["lakh", "maestro", "final-fantasy"])
-    parser.add_argument('--tracks', type=str, nargs='+', required=False, default=['Piano'],
+    parser.add_argument('--tracks', type=str, nargs='+', default=['Piano'],
                         choices=['all', 'Strings','Bass', 'Drums', 'Guitar', 'Piano', None])
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--num_epochs', type=int, default=10)
@@ -31,7 +31,7 @@ if __name__ == '__main__':
         dataset = MIDISequenceDataset(tracks=None, dataset=args.dataset, seq_len=args.seq_len)
 
     lstm = UnconditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, num_layers=args.num_layers,
-                             dropout=args.dropout, log_level=args.log_level)
+                             dropout=args.dropout, log_level=args.log_level, log_suffix='_tracks={}'.format(tracks))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     lstm.to(device)
 
