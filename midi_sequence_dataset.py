@@ -35,12 +35,17 @@ class MIDISequenceDataset(Dataset):
 
             if num_threads > 1:
                 with Pool(num_threads) as pool:
-                    ids_by_midi = list(tqdm(pool.imap(self.midi_to_token_ids, midis),
-                                            desc='Encoding MIDI streams', total=len(midis)))
+                    # Each entry in this list is of the form [token_ids, measure_ids], where
+                    # 1. token_ids: is a list of 3-tuples encoding the midi
+                    # 2. measure_ids: is a list of the measure index for each note value
+                    info_by_midi = list(tqdm(pool.imap(self.midi_to_token_ids, midis),
+                                             desc='Encoding MIDI streams', total=len(midis)))
 
-                token_ids = []
-                for ids in tqdm(ids_by_midi, desc='Adding MIDIs to main encoding', total=len(ids_by_midi)):
-                    token_ids += ids
+                all_token_ids = []
+                all_measure_ids = []
+                for token_ids, measure_ids in tqdm(info_by_midi, desc='Adding MIDIs to main encoding', total=len(info_by_midi)):
+                    all_token_ids += token_ids
+                    all_measure_ids += measure_ids
 
             else:
                 for midi_name in tqdm(midis, desc='Encoding MIDI streams', total=len(midis)):
@@ -74,12 +79,11 @@ class MIDISequenceDataset(Dataset):
         path = os.path.join(self.data_dir, midi_name)
         try:
             stream = m21_timeout_parse(path)
-            # stream = m21.converter.parse(path)
-            encoding = encode(stream)
+            encoding, measures = encode(stream)
 
-            return encoding
+            return encoding, measures
         except:
-            return []
+            return [[], []]
 
 
     def __len__(self):
