@@ -231,7 +231,7 @@ class UnconditionalLSTM(nn.Module):
                 track_id_to_measure_encodings[track_id] = dict(track_id_to_measure_encodings[track_id])
 
             # Convert the whole thing to a normal dict
-            track_id_to_measure_encodings = dict(track_id_to_measure_encodings)                    
+            track_id_to_measure_encodings = dict(track_id_to_measure_encodings)
 
             # Save measure encodings (if on cluster, save to scratch dir; otherwise logdir)
             cluster_path = "/scratch/user/schlager"
