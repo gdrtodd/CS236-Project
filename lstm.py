@@ -7,8 +7,9 @@ import datetime
 import numpy as np
 from torch import nn
 from tqdm import tqdm
-import torch.nn.functional as F
 from data_utils import decode
+import torch.nn.functional as F
+from collections import defaultdict
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
@@ -145,6 +146,57 @@ class UnconditionalLSTM(nn.Module):
 
             # save after each epoch
             self.save_checkpoint(global_step, generate_sample=True)
+
+    def generate_measure_encodings(self, dataset, batch_size=8):
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+
+        track_id_to_measure_encodings = defaultdict(lambda: defaultdict(list))
+
+        self.eval()
+        with torch.no_grad():
+            for batch in tqdm(dataloader, desc='Generating measure encodings', total=math.ceil(len(dataset)/batch_size)):
+                token_ids, measure_ids, track_ids = batch
+                batch_size, seq_len = token_ids.shape
+
+                token_embeds = self.token_embedding(token_ids)
+
+                # Permute into (seq_len, batch, embed_size)
+                token_embeds = token_embeds.permute(1, 0, 2)
+
+                # The position ids are just 0, 1, and 2 repeated for as long
+                # as the sequence length
+                pos_ids = torch.tensor([0, 1, 2]).repeat(batch_size, math.ceil(seq_len/3))[:, :seq_len]
+                pos_ids = pos_ids.to(self.device)
+                pos_embeds = self.pos_embedding(pos_ids)
+                pos_embeds = pos_embeds.permute(1, 0, 2)
+
+                full_embeds = torch.cat((token_embeds, pos_embeds), dim=2)
+
+                lstm_out, _ = self.lstm(full_embeds)
+
+                # We need the lstm output to be (batch_size, seq_len, hidden_dim)
+                lstm_out = lstm_out.permute(1, 0, 2).numpy().tolist()
+
+                # First, we add all of the model hidden states, index by track and measure ID
+                for batch_idx in range(batch_size):
+                    for seq_len_idx in range(seq_len):
+                        track_id = track_ids[batch_idx][seq_len_idx]
+                        measure_id = measure_ids[batch_idx][seq_len_idx]
+
+                        model_hidden = lstm_out[batch_idx][seq_len_idx]
+
+                        track_id_to_measure_encodings[track_id][measure_id].append(model_hidden)
+
+            # After we do that, we then need to average all of the encodings for each measure
+            for track_id in tqdm(track_id_to_measure_encodings, desc='Averaging measure hidden states', total=len(track_id_to_measure_encodings)):
+                for measure_id in track_id_to_measure_encodings[track_id]:
+                    measure_hidden_states = track_id_to_measure_encodings[track_id][measure_id]
+
+                    track_id_to_measure_encodings[track_id][measure_id] = torch.mean(measure_hidden_states)                    
+
+
+
+
 
     def save_checkpoint(self, global_step, generate_sample=False):
         '''
