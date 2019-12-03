@@ -129,9 +129,9 @@ class MIDISequenceDataset(Dataset):
     def __getitem__(self, idx):
         start = idx * self.seq_len
 
-        return torch.LongTensor(self.token_ids[start:start+self.seq_len].astype(np.double)),
+        return (torch.LongTensor(self.token_ids[start:start+self.seq_len].astype(np.double)),
                 torch.LongTensor(self.measure_ids[start:start+self.seq_len].astype(np.double)),
-                torch.LongTensor(self.track_ids[start:start+self.seq_len].astype(np.double))
+                torch.LongTensor(self.track_ids[start:start+self.seq_len].astype(np.double)))
 
 
 if __name__ == "__main__":
