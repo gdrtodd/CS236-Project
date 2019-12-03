@@ -78,7 +78,7 @@ class MIDISequenceDataset(Dataset):
 
             self.token_ids = np.array(all_token_ids, dtype=np.uint16)
             self.measure_ids = np.array(all_measure_ids, dtype=np.uint16)
-            self.track_ids = np.array(all_measure_ids, dtype=np.uint16)
+            self.track_ids = np.array(all_track_ids, dtype=np.uint16)
 
             with open(self.save_dir, 'wb') as file:
                 np.savez(file, token_ids=self.token_ids, measure_ids=self.measure_ids, track_ids=self.track_ids)
