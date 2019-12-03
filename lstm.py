@@ -58,8 +58,8 @@ class UnconditionalLSTM(nn.Module):
             logdir = os.path.join('./logs', logdir_name)
             if log_suffix is not None:
                 logdir += log_suffix
-            os.mkdir(logdir)           
-        
+            os.mkdir(logdir)
+
             args_string = "Embed dimension: {}" + \
                           "\nHidden dimension: {}" + \
                           "\nNum layers: {}" + \
@@ -110,8 +110,7 @@ class UnconditionalLSTM(nn.Module):
         return projected
 
     def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000):
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
-            num_workers=4)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
         loss_fn = nn.CrossEntropyLoss()
         global_step = 0
@@ -191,7 +190,7 @@ class UnconditionalLSTM(nn.Module):
                     prev = torch.multinomial(log_probs, num_samples=1)
 
                 output = torch.cat((output, prev), dim=1)
-                
+
         output = output.cpu().numpy().tolist()[0]
 
         self.train()
