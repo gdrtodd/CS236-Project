@@ -198,7 +198,7 @@ class UnconditionalLSTM(nn.Module):
                 for measure_id in track_id_to_measure_encodings[track_id]:
                     measure_hidden_states = track_id_to_measure_encodings[track_id][measure_id]
 
-                    track_id_to_measure_encodings[track_id][measure_id] = torch.mean(torch.tensor(measure_hidden_states))
+                    track_id_to_measure_encodings[track_id][measure_id] = torch.mean(torch.tensor(measure_hidden_states), dim=0)
 
                 # Convert to a normal dict
                 track_id_to_measure_encodings[track_id] = dict(track_id_to_measure_encodings[track_id])
@@ -210,7 +210,6 @@ class UnconditionalLSTM(nn.Module):
             print("Saving measure encodings to {}...".format(measure_encodings_path))
             with open(measure_encodings_path, 'wb') as file:
                 pickle.dump(track_id_to_measure_encodings, file)
-
 
 
     def save_checkpoint(self, global_step, generate_sample=False):
