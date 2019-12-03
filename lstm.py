@@ -119,9 +119,11 @@ class UnconditionalLSTM(nn.Module):
             with tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)) as progbar:
                 for batch in progbar:
 
-                    batch = batch.to(self.device)
+                    token_ids, _, _ = batch
 
-                    inputs, labels = batch[:, :-1], batch[:, 1:]
+                    token_ids = token_ids.to(self.device)
+
+                    inputs, labels = token_ids[:, :-1], token_ids[:, 1:]
 
                     out = self.forward(inputs)
 
@@ -154,7 +156,7 @@ class UnconditionalLSTM(nn.Module):
 
         self.eval()
         with torch.no_grad():
-            for batch in tqdm(dataloader, desc='Generating measure encodings', total=math.ceil(len(dataset)/batch_size)):
+            for idx, batch in enumerate(tqdm(dataloader, desc='Generating measure encodings', total=math.ceil(len(dataset)/batch_size))):
                 token_ids, measure_ids, track_ids = batch
                 batch_size, seq_len = token_ids.shape
 
@@ -180,19 +182,29 @@ class UnconditionalLSTM(nn.Module):
                 # First, we add all of the model hidden states, index by track and measure ID
                 for batch_idx in range(batch_size):
                     for seq_len_idx in range(seq_len):
-                        track_id = track_ids[batch_idx][seq_len_idx]
-                        measure_id = measure_ids[batch_idx][seq_len_idx]
+                        track_id = track_ids[batch_idx][seq_len_idx].item()
+                        measure_id = measure_ids[batch_idx][seq_len_idx].item()
 
                         model_hidden = lstm_out[batch_idx][seq_len_idx]
 
                         track_id_to_measure_encodings[track_id][measure_id].append(model_hidden)
+
+                if idx == 0:
+                    break
+
+            print('\n', track_id_to_measure_encodings.keys())
 
             # After we do that, we then need to average all of the encodings for each measure
             for track_id in tqdm(track_id_to_measure_encodings, desc='Averaging measure hidden states', total=len(track_id_to_measure_encodings)):
                 for measure_id in track_id_to_measure_encodings[track_id]:
                     measure_hidden_states = track_id_to_measure_encodings[track_id][measure_id]
 
-                    track_id_to_measure_encodings[track_id][measure_id] = torch.mean(measure_hidden_states)                    
+                    track_id_to_measure_encodings[track_id][measure_id] = torch.mean(torch.tensor(measure_hidden_states))
+
+                # Convert to a normal dict
+                track_id_to_measure_encodings[track_id] = dict(track_id_to_measure_encodings[track_id])
+
+            track_id_to_measure_encodings = dict(track_id_to_measure_encodings)                    
 
 
 
