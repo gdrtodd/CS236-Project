@@ -1,6 +1,7 @@
 import os
 import math
 import torch
+import pickle
 import shutil
 import getpass
 import datetime
@@ -149,7 +150,7 @@ class UnconditionalLSTM(nn.Module):
             # save after each epoch
             self.save_checkpoint(global_step, generate_sample=True)
 
-    def generate_measure_encodings(self, dataset, batch_size=8):
+    def generate_measure_encodings(self, dataset, logdir, batch_size=8):
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
         track_id_to_measure_encodings = defaultdict(lambda: defaultdict(list))
@@ -179,20 +180,18 @@ class UnconditionalLSTM(nn.Module):
                 # We need the lstm output to be (batch_size, seq_len, hidden_dim)
                 lstm_out = lstm_out.permute(1, 0, 2).numpy().tolist()
 
+                track_ids = track_ids.numpy()
+                measure_ids = measure_ids.numpy()
+
                 # First, we add all of the model hidden states, index by track and measure ID
                 for batch_idx in range(batch_size):
                     for seq_len_idx in range(seq_len):
-                        track_id = track_ids[batch_idx][seq_len_idx].item()
-                        measure_id = measure_ids[batch_idx][seq_len_idx].item()
+                        track_id = track_ids[batch_idx][seq_len_idx]
+                        measure_id = measure_ids[batch_idx][seq_len_idx]
 
                         model_hidden = lstm_out[batch_idx][seq_len_idx]
 
                         track_id_to_measure_encodings[track_id][measure_id].append(model_hidden)
-
-                if idx == 0:
-                    break
-
-            print('\n', track_id_to_measure_encodings.keys())
 
             # After we do that, we then need to average all of the encodings for each measure
             for track_id in tqdm(track_id_to_measure_encodings, desc='Averaging measure hidden states', total=len(track_id_to_measure_encodings)):
@@ -206,7 +205,11 @@ class UnconditionalLSTM(nn.Module):
 
             track_id_to_measure_encodings = dict(track_id_to_measure_encodings)                    
 
+            measure_encodings_path = os.path.join(logdir, 'measure_encodings.pkl')
 
+            print("Saving measure encodings to {}...".format(measure_encodings_path))
+            with open(measure_encodings_path, 'wb') as file:
+                pickle.dump(track_id_to_measure_encodings, file)
 
 
 

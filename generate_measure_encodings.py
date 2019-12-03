@@ -55,4 +55,4 @@ if __name__ == '__main__':
 
     dataset = MIDISequenceDataset(tracks, dataset=args.dataset)
 
-    lstm.generate_measure_encodings(dataset, batch_size=args.batch_size)
+    lstm.generate_measure_encodings(dataset, args.logdir, batch_size=args.batch_size)
