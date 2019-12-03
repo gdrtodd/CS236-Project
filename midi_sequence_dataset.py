@@ -1,7 +1,10 @@
 import os
+import glob
 import torch
+import pickle
 import argparse
 import numpy as np
+import pandas as pd
 import music21 as m21
 import multiprocessing
 from tqdm import tqdm
@@ -20,9 +23,13 @@ class MIDISequenceDataset(Dataset):
         if dataset == "lakh":
             self.data_dir = os.path.join(cache_dir, 'midis_tracks={}'.format(tracks))
             self.save_dir = os.path.join(cache_dir, "token_dataset_tracks={}".format(tracks))
+            self.lookup_file = os.path.join(cache_dir, "bass_piano_track_lookup")
         else:  # dataset == "maestro"
             self.data_dir = os.path.join(cache_dir, '{}_tracks'.format(dataset))
             self.save_dir = os.path.join(cache_dir, "token_dataset_{}".format(dataset))
+
+        with open(self.lookup_file, "rb") as f:
+            self.lookup_table = pickle.load(f)
 
         if not os.path.exists(self.save_dir):
             print("No token cache found, parsing MIDI files from {} ...".format(self.data_dir))
@@ -33,6 +40,10 @@ class MIDISequenceDataset(Dataset):
 
             skip_count = 0
 
+            all_token_ids = []
+            all_measure_ids = []
+            all_track_ids = []
+
             if num_threads > 1:
                 with Pool(num_threads) as pool:
                     # Each entry in this list is of the form [token_ids, measure_ids], where
@@ -41,48 +52,75 @@ class MIDISequenceDataset(Dataset):
                     info_by_midi = list(tqdm(pool.imap(self.midi_to_token_ids, midis),
                                              desc='Encoding MIDI streams', total=len(midis)))
 
-                all_token_ids = []
-                all_measure_ids = []
-                for token_ids, measure_ids in tqdm(info_by_midi, desc='Adding MIDIs to main encoding', total=len(info_by_midi)):
+                for token_ids, measure_ids, track_ids in tqdm(info_by_midi, desc='Adding MIDIs to main encoding',
+                                                              total=len(info_by_midi)):
                     all_token_ids += token_ids
                     all_measure_ids += measure_ids
+                    all_track_ids += track_ids
 
             else:
                 for midi_name in tqdm(midis, desc='Encoding MIDI streams', total=len(midis)):
-                    path = os.path.join(self.data_dir, midi_name)
 
-                    try:
-                        stream = m21.converter.parse(path)
-                    except:
-                        print("Skipping {} because it took too long to parse".format(midi_name))
+                    info_by_midi = self.midi_to_token_ids(midi_name)
+
+                    if info_by_midi == [[], [], []]:
                         skip_count += 1
                         continue
 
-                    token_id_encoding = encode(stream)
+                    else:
+                        token_ids, measure_ids, track_ids = info_by_midi
 
-                    token_ids += token_id_encoding
+                    all_token_ids += token_ids
+                    all_measure_ids += measure_ids
+                    all_track_ids += track_ids
 
                 print("\nSkipped {} out of {} files".format(skip_count, len(midis)))
 
-            self.token_ids = np.array(token_ids, dtype=np.uint16)
+            self.token_ids = np.array(all_token_ids, dtype=np.uint16)
+            self.measure_ids = np.array(all_measure_ids, dtype=np.uint16)
+            self.track_ids = np.array(all_measure_ids, dtype=np.uint16)
 
             with open(self.save_dir, 'wb') as file:
-                np.save(file, self.token_ids)
+                np.savez(file, token_ids=self.token_ids, measure_ids=self.measure_ids, track_ids=self.track_ids)
 
         else:
             print("Loading token cache from {} ...".format(self.save_dir))
             with open(self.save_dir, 'rb') as file:
-                self.token_ids = np.load(file)
+                dataset_files = np.load(file)
+                self.token_ids = dataset_files["token_ids"]
+                self.measure_ids = dataset_files["measure_ids"]
+                self.track_ids = dataset_files["track_ids"]
+
 
     def midi_to_token_ids(self, midi_name):
         path = os.path.join(self.data_dir, midi_name)
         try:
             stream = m21.converter.parse(path)
-            encoding = encode(stream)
+            encoding, measures = encode(stream)
 
-            return encoding, measures
+            track_id = self.get_track_id(path)
+            track_ids = [track_id] * len(encoding)
+
+            return encoding, measures, track_ids
         except:
-            return [[], []]
+            return [[], [], []]
+
+    def get_track_id(self, midi_path):
+
+        track_id_seq = self.get_track_id_seq(midi_path)
+        return self.lookup_table[track_id_seq]
+
+    def get_track_id_seq(self, track_file_path):
+        """
+        Given a file path string, returns the track id seq for lookup. Assumes
+        filename format is lakh midi style
+        :param track_file_path: path to a .mid file
+        :return: track id seq (e.g. TRAAAGR128F425B14B)
+        """
+        track_file = os.path.basename(track_file_path)
+        track_id_seq = track_file.split('-')[0]
+
+        return track_id_seq
 
 
     def __len__(self):
@@ -90,14 +128,17 @@ class MIDISequenceDataset(Dataset):
 
     def __getitem__(self, idx):
         start = idx * self.seq_len
-        return torch.LongTensor(self.token_ids[start:start+self.seq_len].astype(np.double))
+
+        return (torch.LongTensor(self.token_ids[start:start+self.seq_len].astype(np.double)),
+                torch.LongTensor(self.measure_ids[start:start+self.seq_len].astype(np.double)),
+                torch.LongTensor(self.track_ids[start:start+self.seq_len].astype(np.double)))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--tracks', type=str, nargs='+', required=False, choices=['all', 'Strings',
                         'Bass', 'Drums', 'Guitar', 'Piano'])
-    parser.add_argument('--dataset', type=str, required=True, choices=['lakh', 'maestro', 'final-fantasy'])
+    parser.add_argument('--dataset', type=str, default="lakh", choices=['lakh', 'maestro', 'final-fantasy'])
     parser.add_argument('--threads', type=int, required=False, default=4)
 
     args = parser.parse_args()
