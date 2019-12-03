@@ -151,14 +151,20 @@ class UnconditionalLSTM(nn.Module):
             self.save_checkpoint(global_step, generate_sample=True)
 
     def generate_measure_encodings(self, dataset, logdir, batch_size=8):
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
         track_id_to_measure_encodings = defaultdict(lambda: defaultdict(list))
+        buffer_dict = defaultdict(lambda: defaultdict(list))
+
+        buffer_threshold = 100
+        buffer_threshold_increment = 100
 
         self.eval()
         with torch.no_grad():
             for idx, batch in enumerate(tqdm(dataloader, desc='Generating measure encodings', total=math.ceil(len(dataset)/batch_size))):
                 token_ids, measure_ids, track_ids = batch
+
+                token_ids = token_ids.to(self.device)
                 batch_size, seq_len = token_ids.shape
 
                 token_embeds = self.token_embedding(token_ids)
@@ -178,10 +184,10 @@ class UnconditionalLSTM(nn.Module):
                 lstm_out, _ = self.lstm(full_embeds)
 
                 # We need the lstm output to be (batch_size, seq_len, hidden_dim)
-                lstm_out = lstm_out.permute(1, 0, 2).numpy().tolist()
+                lstm_out = lstm_out.permute(1, 0, 2).cpu().numpy().astype(np.float16).tolist()
 
-                track_ids = track_ids.numpy()
-                measure_ids = measure_ids.numpy()
+                track_ids = track_ids.cpu().numpy()
+                measure_ids = measure_ids.cpu().numpy()
 
                 # First, we add all of the model hidden states, index by track and measure ID
                 for batch_idx in range(batch_size):
@@ -189,23 +195,51 @@ class UnconditionalLSTM(nn.Module):
                         track_id = track_ids[batch_idx][seq_len_idx]
                         measure_id = measure_ids[batch_idx][seq_len_idx]
 
+                        # once threshold is reached, dump buffer_dict contents of PRIOR tracks/measures
+                        # then raise the threshold, empty the buffer, and continue onward
+                        # this is necessary to keep memory footprint low
+                        if track_id >= buffer_threshold:
+                            print("Buffer threshold reached! {} tracks".format(buffer_threshold))
+                            buffer_threshold += buffer_threshold_increment
+
+                            print("Dumping buffer dict...")
+                            for buffer_t_id in buffer_dict:  # buffer track
+                                for buffer_m_id in buffer_dict[buffer_t_id]:  # buffer measure
+                                    measure_hidden_states = buffer_dict[buffer_t_id][buffer_m_id]
+
+                                    # Take the average to get compact representation
+                                    track_id_to_measure_encodings[buffer_t_id][buffer_m_id] = torch.mean(torch.tensor(measure_hidden_states), dim=0)
+
+                                # Convert the track to a normal dict
+                                track_id_to_measure_encodings[buffer_t_id] = dict(track_id_to_measure_encodings[buffer_t_id])
+
+                            # De-allocate buffer and start a new one
+                            del buffer_dict
+                            buffer_dict = defaultdict(lambda: defaultdict(list))
+
                         model_hidden = lstm_out[batch_idx][seq_len_idx]
+                        buffer_dict[track_id][measure_id].append(model_hidden)
 
-                        track_id_to_measure_encodings[track_id][measure_id].append(model_hidden)
-
-            # After we do that, we then need to average all of the encodings for each measure
-            for track_id in tqdm(track_id_to_measure_encodings, desc='Averaging measure hidden states', total=len(track_id_to_measure_encodings)):
-                for measure_id in track_id_to_measure_encodings[track_id]:
-                    measure_hidden_states = track_id_to_measure_encodings[track_id][measure_id]
+            # Final dump of buffer dict
+            for track_id in buffer_dict:
+                for measure_id in buffer_dict[track_id]:
+                    measure_hidden_states = buffer_dict[track_id][measure_id]
 
                     track_id_to_measure_encodings[track_id][measure_id] = torch.mean(torch.tensor(measure_hidden_states), dim=0)
 
-                # Convert to a normal dict
+                # Convert the track to a normal dict
                 track_id_to_measure_encodings[track_id] = dict(track_id_to_measure_encodings[track_id])
 
+            # Convert the whole thing to a normal dict
             track_id_to_measure_encodings = dict(track_id_to_measure_encodings)                    
 
-            measure_encodings_path = os.path.join(logdir, 'measure_encodings.pkl')
+            # Save measure encodings (if on cluster, save to scratch dir; otherwise logdir)
+            cluster_path = "/scratch/user/schlager"
+            if os.path.exists(cluster_path):
+                base_dir = cluster_path
+            else:
+                base_dir = logdir
+            measure_encodings_path = os.path.join(base_dir, 'measure_encodings.pkl')
 
             print("Saving measure encodings to {}...".format(measure_encodings_path))
             with open(measure_encodings_path, 'wb') as file:

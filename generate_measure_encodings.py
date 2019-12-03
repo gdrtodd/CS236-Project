@@ -47,6 +47,8 @@ if __name__ == '__main__':
 
     print("Loading model weights from {}...".format(full_path))
     lstm.load_state_dict(torch.load(full_path, map_location=device))
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    lstm.to(device)
 
     if args.dataset == "lakh":
         tracks = '-'.join(list(args.tracks))
