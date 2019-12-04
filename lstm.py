@@ -489,12 +489,13 @@ class ConditionalLSTM(nn.Module):
                     global_step += 1
 
                     if global_step%save_interval == 0:
-                        self.save_checkpoint(global_step, generate_sample=False)
+                        self.save_checkpoint(global_step, generate_sample=True, measure_ids=measure_ids,
+                                             track_ids=track_ids)
 
             # save after each epoch
-            self.save_checkpoint(global_step, generate_sample=False)
+            self.save_checkpoint(global_step, generate_sample=True, measure_ids=measure_ids, track_ids=track_ids)
 
-    def save_checkpoint(self, global_step, generate_sample=False):
+    def save_checkpoint(self, global_step, generate_sample=False, measure_ids=None, track_ids=None):
         '''
         Saves the model state dict, and will generate a sample if specified
         '''
@@ -502,11 +503,11 @@ class ConditionalLSTM(nn.Module):
         torch.save(self.state_dict(), checkpoint_name)
 
         if generate_sample:
-            generation = self.generate(length=120)
+            generation = self.generate(length=120, measure_ids=measure_ids, track_ids=track_ids)
             stream = decode(generation)
             stream.write('midi', os.path.join(self.train_sample_dir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
 
-    def generate(self, condition=[60, 8, 8], k=None, temperature=1, length=100):
+    def generate(self, condition=[60, 8, 8], k=None, temperature=1, length=100, measure_ids=None, track_ids=None):
         '''
         If 'k' is None: sample over all tokens in vocabulary
         If temperature == 0: perform greedy generation
@@ -521,7 +522,11 @@ class ConditionalLSTM(nn.Module):
         with torch.no_grad():
             for i in tqdm(range(length), leave=False):
 
-                logits = self.forward(output)  # TODO: update forward to include bassline condition info
+                # TODO: update forward to include bass line condition info
+                if measure_ids is None or track_ids is None:
+                    raise ValueError("For now, you must provide measure_ids and track_ids for generation.")
+                # logits = self.forward(output)
+                logits = self.forward(output, measure_ids, track_ids)
                 logits = logits.to(self.device)
 
                 if temperature == 0:
