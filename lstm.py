@@ -410,24 +410,24 @@ class ConditionalLSTM(nn.Module):
 
         if self.measure_enc_lookup is not None:
             measure_encs = torch.zeros(batch_size, seq_len, self.measure_enc_dim)
-            print("Beginning measure encoding lookup...")
+            # print("Beginning measure encoding lookup...")
             for batch_idx in range(batch_size):
                 for seq_len_idx in range(seq_len):
                     measure_id = measure_ids[batch_idx][seq_len_idx]
                     track_id = track_ids[batch_idx][seq_len_idx]
 
                     measures = self.measure_enc_lookup.get(track_id)
-                    if measure is None:
-                        print("Track ID {} has no bass".format(track_id))
+                    if measures is None:
+                        # print("Track ID {} has no bass".format(track_id))
                         continue
                     else:
                         enc = measures.get(measure_id)
                         if enc is None:
-                            print("Measure ID {} in track {} has no bass".format(measure_id, track_id))
+                            # print("Measure ID {} in track {} has no bass".format(measure_id, track_id))
                             continue
                         else:
                             measure_encs[batch_idx][seq_len_idx] = self.measure_enc_lookup[track_id][measure_id]
-            print("\tDone!")
+            # print("\tDone!")
 
         else:
             measure_encs = torch.zeros(batch_size, seq_len, self.measure_enc_dim)
