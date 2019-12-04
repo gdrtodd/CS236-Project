@@ -489,10 +489,10 @@ class ConditionalLSTM(nn.Module):
                     global_step += 1
 
                     if global_step%save_interval == 0:
-                        self.save_checkpoint(global_step, generate_sample=True)
+                        self.save_checkpoint(global_step, generate_sample=False)
 
             # save after each epoch
-            self.save_checkpoint(global_step, generate_sample=True)
+            self.save_checkpoint(global_step, generate_sample=False)
 
     def save_checkpoint(self, global_step, generate_sample=False):
         '''
@@ -521,7 +521,7 @@ class ConditionalLSTM(nn.Module):
         with torch.no_grad():
             for i in tqdm(range(length), leave=False):
 
-                logits = self.forward(output)
+                logits = self.forward(output)  # TODO: update forward to include bassline condition info
                 logits = logits.to(self.device)
 
                 if temperature == 0:
