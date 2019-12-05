@@ -503,11 +503,16 @@ class ConditionalLSTM(nn.Module):
             stream = decode(generation)
             stream.write('midi', os.path.join(self.train_sample_dir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
 
-    def generate(self, condition=[60, 8, 8], k=None, temperature=1, length=100):
+    def generate(self, melody_condition=[60, 8, 8], bassline_condition=[48, 8, 8], bassline_model=None, k=None, 
+                 temperature=1, length=100):
         '''
         If 'k' is None: sample over all tokens in vocabulary
         If temperature == 0: perform greedy generation
         '''
+        # If we have a bassline model, then we generate its output first
+        if bassline_model is not None:
+            bassline_model_output = bassline_model.generate(condition=bassline_condition)
+
         # remove regularization for generation
         self.eval()
 
