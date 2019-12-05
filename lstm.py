@@ -21,7 +21,8 @@ class UnconditionalLSTM(nn.Module):
     LOG LEVEL 1: write logs to ./logs/debug
     LOG LEVEL 2: write logs to new directory w/ username & time
     '''
-    def __init__(self, embed_dim, hidden_dim, num_layers=2, dropout=0.5, vocab_size=128, log_level=0, log_suffix=None):
+    def __init__(self, embed_dim, hidden_dim, num_layers=2, dropout=0.5,
+                 vocab_size=128, log_level=0, log_suffix=None, log_base_dir="./logs"):
         #Initialize the module constructor
         super(UnconditionalLSTM, self).__init__()
 
@@ -45,7 +46,7 @@ class UnconditionalLSTM(nn.Module):
 
         logdir = None
         if log_level==1:
-            logdir = './logs/debug'
+            logdir = os.path.join(log_base_dir, 'debug')
             # Clear out the debug directory
             if os.path.exists(logdir):
                 shutil.rmtree(logdir)
@@ -58,7 +59,7 @@ class UnconditionalLSTM(nn.Module):
             time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
 
             logdir_name = '{}_{}_{}'.format(user, date, time)
-            logdir = os.path.join('./logs', logdir_name)
+            logdir = os.path.join(log_base_dir, logdir_name)
             if log_suffix is not None:
                 logdir += log_suffix
             os.mkdir(logdir)
@@ -317,8 +318,8 @@ class ConditionalLSTM(nn.Module):
     LOG LEVEL 1: write logs to ./logs/debug
     LOG LEVEL 2: write logs to new directory w/ username & time
     '''
-    def __init__(self, embed_dim, hidden_dim, measure_enc_dim, num_layers=2, dropout=0.5, vocab_size=128, log_level=0, 
-                 log_suffix=None):
+    def __init__(self, embed_dim, hidden_dim, measure_enc_dim, num_layers=2,
+                 dropout=0.5, vocab_size=128, log_level=0, log_suffix=None, log_base_dir='./logs'):
         #Initialize the module constructor
         super(ConditionalLSTM, self).__init__()
 
@@ -349,12 +350,13 @@ class ConditionalLSTM(nn.Module):
 
         logdir = None
         if log_level==1:
-            logdir = './logs/debug'
+            logdir = os.path.join(log_base_dir, 'debug')
             # Clear out the debug directory
             if os.path.exists(logdir):
                 shutil.rmtree(logdir)
 
             os.mkdir(logdir)
+            print("Logging to {}".format(logdir))
 
         elif log_level==2:
             user = getpass.getuser().lower()
@@ -362,10 +364,11 @@ class ConditionalLSTM(nn.Module):
             time = str(datetime.datetime.now().time()).split('.')[0].replace(':', '-')
 
             logdir_name = '{}_conditional_{}_{}'.format(user, date, time)
-            logdir = os.path.join('./logs', logdir_name)
+            logdir = os.path.join(log_base_dir, logdir_name)
             if log_suffix is not None:
                 logdir += log_suffix
             os.mkdir(logdir)
+            print("Logging to {}".format(logdir))
 
             args_string = "Embed dimension: {}" + \
                           "\nHidden dimension: {}" + \
@@ -445,7 +448,7 @@ class ConditionalLSTM(nn.Module):
         return projected
 
     def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000, measure_enc_dir=None):
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
         if measure_enc_dir is not None:
             measure_encodings_path = os.path.join(measure_enc_dir, 'measure_encodings.pkl')
@@ -486,12 +489,13 @@ class ConditionalLSTM(nn.Module):
                     global_step += 1
 
                     if global_step%save_interval == 0:
-                        self.save_checkpoint(global_step, generate_sample=True)
+                        self.save_checkpoint(global_step, generate_sample=True, measure_ids=measure_ids,
+                                             track_ids=track_ids)
 
             # save after each epoch
-            self.save_checkpoint(global_step, generate_sample=True)
+            self.save_checkpoint(global_step, generate_sample=True, measure_ids=measure_ids, track_ids=track_ids)
 
-    def save_checkpoint(self, global_step, generate_sample=False):
+    def save_checkpoint(self, global_step, generate_sample=False, measure_ids=None, track_ids=None):
         '''
         Saves the model state dict, and will generate a sample if specified
         '''
@@ -499,11 +503,11 @@ class ConditionalLSTM(nn.Module):
         torch.save(self.state_dict(), checkpoint_name)
 
         if generate_sample:
-            generation = self.generate(length=120)
+            generation = self.generate(length=120, measure_ids=measure_ids, track_ids=track_ids)
             stream = decode(generation)
             stream.write('midi', os.path.join(self.train_sample_dir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
 
-    def generate(self, melody_condition=[60, 8, 8], bassline_condition=[48, 8, 8], bassline_model=None, k=None, 
+    def generate(self, melody_condition=[60, 8, 8], bassline_condition=[48, 8, 8], bassline_model=None, k=None,
                  temperature=1, length=100):
         '''
         If 'k' is None: sample over all tokens in vocabulary
@@ -523,7 +527,11 @@ class ConditionalLSTM(nn.Module):
         with torch.no_grad():
             for i in tqdm(range(length), leave=False):
 
-                logits = self.forward(output)
+                # TODO: update forward to include bass line condition info
+                if measure_ids is None or track_ids is None:
+                    raise ValueError("For now, you must provide measure_ids and track_ids for generation.")
+                # logits = self.forward(output)
+                logits = self.forward(output, measure_ids, track_ids)
                 logits = logits.to(self.device)
 
                 if temperature == 0:
