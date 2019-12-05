@@ -9,7 +9,7 @@ import datetime
 import numpy as np
 from torch import nn
 from tqdm import tqdm
-from data_utils import decode
+from data_utils import decode, split_encoding_by_measure
 import torch.nn.functional as F
 from collections import defaultdict
 from tensorboardX import SummaryWriter
@@ -507,31 +507,97 @@ class ConditionalLSTM(nn.Module):
             stream = decode(generation)
             stream.write('midi', os.path.join(self.train_sample_dir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
 
-    def generate(self, melody_condition=[60, 8, 8], bassline_condition=[48, 8, 8], bassline_model=None, k=None,
-                 temperature=1, length=100):
+    def generate(self, melody_condition=[60, 8, 8], bassline_condition=[36, 8, 8], bassline_model=None, k=None,
+                 temperature=1, bass_length=120, melody_length=240):
         '''
         If 'k' is None: sample over all tokens in vocabulary
         If temperature == 0: perform greedy generation
         '''
-        # If we have a bassline model, then we generate its output first
-        if bassline_model is not None:
-            bassline_model_output = bassline_model.generate(condition=bassline_condition)
-
-        # remove regularization for generation
-        self.eval()
-
-        prev = torch.tensor(condition).unsqueeze(0)
-        prev = prev.to(self.device)
-        output = prev
-
         with torch.no_grad():
-            for i in tqdm(range(length), leave=False):
+            # If we have a bassline model, then we generate its output first
+            if bassline_model is not None:
+                bassline_model_output = bassline_model.generate(condition=bassline_condition, k=k, 
+                                                                temperature=temperature, length=bass_length)
 
-                # TODO: update forward to include bass line condition info
-                if measure_ids is None or track_ids is None:
-                    raise ValueError("For now, you must provide measure_ids and track_ids for generation.")
-                # logits = self.forward(output)
-                logits = self.forward(output, measure_ids, track_ids)
+                # We need to cut off the last 3 tokens to account for the condition at the start
+                bassline_model_output = bassline_model_output[:-3]
+
+                bass_output_idxs_by_measure = split_encoding_by_measure(bassline_model_output)
+
+                num_bass_measures = len(bass_output_idxs_by_measure)
+
+                bass_token_ids = torch.tensor(bassline_model_output).reshape(1, len(bassline_model_output))
+                bass_token_ids = bass_token_ids.to(bassline_model.device)
+                batch_size, seq_len = bass_token_ids.shape
+
+                bass_token_embeds = self.token_embedding(bass_token_ids)
+
+                # Permute into (seq_len, batch, embed_size)
+                bass_token_embeds = bass_token_embeds.permute(1, 0, 2)
+
+                # The position ids are just 0, 1, and 2 repeated for as long
+                # as the sequence length
+                bass_pos_ids = torch.tensor([0, 1, 2]).repeat(batch_size, math.ceil(seq_len/3))[:, :seq_len]
+                bass_pos_ids = bass_pos_ids.to(self.device)
+                bass_pos_embeds = self.pos_embedding(bass_pos_ids)
+                bass_pos_embeds = bass_pos_embeds.permute(1, 0, 2)
+
+                bass_full_embeds = torch.cat((bass_token_embeds, bass_pos_embeds), dim=2)
+
+                bass_lstm_out = bassline_model.lstm(bass_full_embeds)[0].squeeze(1)
+
+                bass_measure_encodings = []
+                for output_idxs in bass_output_idxs_by_measure:
+                    bass_encodings = bass_lstm_out[output_idxs]
+
+                    bass_measure_encodings.append(torch.mean(bass_encodings, dim=0))
+                bass_measure_encodings = torch.stack(bass_measure_encodings, dim=0)
+
+            # BEGIN CONDITIONAL GENERATION
+            # remove regularization for generation
+            self.eval()
+
+            prev = torch.tensor(melody_condition).unsqueeze(0)
+            prev = prev.to(self.device)
+            output = prev
+
+            measure_encs = torch.stack(3*[bass_measure_encodings[0]], dim=0).unsqueeze(0)
+            measure_encs = measure_encs.to(self.device)
+
+            cur_measure = 0
+
+            # The conditioning is a quarter note, so that's the offset within the measure we 
+            # begin at!
+            measure_offset = 1
+
+            # Index an advance token into this to get the number of quarter notes it represents
+            all_timings = np.arange(0, 16, 0.125)
+
+            for i in tqdm(range(melody_length), leave=False):
+                # NOTE: if i%3 == 2, then we are generating an advance token and need to pay attention!!
+
+                batch_size, seq_len = output.shape
+                token_embeds = self.token_embedding(output)
+
+                # Permute into (seq_len, batch, embed_size)
+                token_embeds = token_embeds.permute(1, 0, 2)
+
+                # The position ids are just 0, 1, and 2 repeated for as long
+                # as the sequence length
+                pos_ids = torch.tensor([0, 1, 2]).repeat(batch_size, math.ceil(seq_len/3))[:, :seq_len]
+                pos_ids = pos_ids.to(self.device)
+                pos_embeds = self.pos_embedding(pos_ids)
+                pos_embeds = pos_embeds.permute(1, 0, 2)
+
+                # The measure encoding comes from 'bass_measure_encodings' created above
+                measure_embeds = self.measure_enc_proj(measure_encs)
+                measure_embeds = measure_embeds.permute(1, 0, 2)
+
+                full_embeds = torch.cat((token_embeds, pos_embeds, measure_embeds), dim=2)
+
+                lstm_out, _ = self.lstm(full_embeds)
+
+                logits = self.proj(lstm_out)
                 logits = logits.to(self.device)
 
                 if temperature == 0:
@@ -549,11 +615,33 @@ class ConditionalLSTM(nn.Module):
 
                 output = torch.cat((output, prev), dim=1)
 
-        output = output.cpu().numpy().tolist()[0]
+                # We add the encoding of the current measure to measure_encs tensor --
+                # but if we generate more measures of melody than bass we just keep using
+                # the final measure_encodings
+                cur_measure_enc = bass_measure_encodings[min(cur_measure, num_bass_measures-1)].unsqueeze(0).unsqueeze(0)
+                measure_encs = torch.cat((measure_encs, cur_measure_enc), dim=1)
+
+                # If the current generation idx%3 == 2, then we're generating an advance token!
+                if i%3 == 2:
+                    advance_idx = prev.item()
+                    measure_offset += all_timings[advance_idx]
+                    # We always generate in 4/4
+                    if measure_offset > 4:
+                        cur_measure += 1
+                        measure_offset = measure_offset%4
+
+                        if cur_measure > num_bass_measures:
+                            break
+
+                # print("Final output shape: ", output.shape)
+                # print("Final measure encs shape: ", measure_encs.shape)
+                # assert False
+
+        melody_model_output = output.cpu().numpy().tolist()[0]
 
         self.train()
 
-        return output
+        return bassline_model_output, melody_model_output
 
     def mask_logits(self, logits, k=None):
         if k is None:
