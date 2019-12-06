@@ -22,7 +22,7 @@ class MIDISequenceDataset(Dataset):
 
         if dataset == "lakh":
             self.data_dir = os.path.join(cache_dir, 'midis_tracks={}'.format(tracks))
-            self.save_dir = os.path.join(cache_dir, "token_dataset_tracks={}".format(tracks))
+            self.save_dir = os.path.join(cache_dir, "token_dataset_tracks={}_train".format(tracks))
             self.lookup_file = os.path.join(cache_dir, "bass_piano_track_lookup")
         else:  # dataset == "maestro"
             self.data_dir = os.path.join(cache_dir, '{}_tracks'.format(dataset))
