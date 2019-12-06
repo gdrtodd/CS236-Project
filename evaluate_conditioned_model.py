@@ -5,20 +5,20 @@ import torch
 import argparse
 import numpy as np
 from lstm import UnconditionalLSTM, ConditionalLSTM
+from midi_sequence_dataset import MIDISequenceDataset
 from data_utils import decode, open_file
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--bass_logdir', type=str, default='logs/schlager_2019-12-02_00-34-00_tracks=Bass')
-    parser.add_argument('--melody_logdir', type=str, default='logs/schlager_conditional_2019-12-04_11-40-07_tracks=Piano')
-    parser.add_argument('--condition', type=int, nargs='+', required=False, default=[60, 8, 8])
+    parser.add_argument('--logdir', type=str, required=True)
+    parser.add_argument('--dataset_type', type=str, default="test")
+    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--seq_len', type=int, default=240)
     parser.add_argument('--ckp', type=int, required=False)
     parser.add_argument('--e_dim', type=int, default=200)
     parser.add_argument('--h_dim', type=int, default=400)
-    parser.add_argument('--bass_sample_len', type=int, default=120)
-    parser.add_argument('--melody_sample_len', type=int, default=300)
-    parser.add_argument('--k', type=int, default=40)
-    parser.add_argument('--temp', type=float, default=1)
+    parser.add_argument('--num_layers', type=int, default=2)
+    parser.add_argument('--melody_sample_len', type=int, default=240)
 
     # NOTE: if --temp == 0, then we perform greedy generation
 
@@ -26,11 +26,9 @@ if __name__ == '__main__':
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    print("\nConstructing BASSLINE model...")
-    bassline_lstm = UnconditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, log_level=0)
 
     # if specified, get specific checkpoint
-    checkpoint_dir = os.path.join(args.bass_logdir, 'checkpoints')
+    checkpoint_dir = os.path.join(args.logdir, 'checkpoints')
     if args.ckp:
         full_path = os.path.join(checkpoint_dir, 'model_checkpoint_step_{}.pt'.format(args.ckp))
         num_steps = args.ckp
@@ -49,50 +47,31 @@ if __name__ == '__main__':
         last_checkpoint_path = checkpoints[sort_order[-1]]
         full_path = last_checkpoint_path
 
-    print("Loading BASSLINE model weights from {}...".format(full_path))
-    bassline_lstm.load_state_dict(torch.load(full_path, map_location=device))
+    tracks = '-'.join(list(["Piano"]))
+    dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, type=args.dataset_type)
 
     print("\nConstructing MELODY model...")
-    melody_lstm = ConditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, measure_enc_dim=args.h_dim, log_level=0)
+    lstm = ConditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, measure_enc_dim=400, num_layers=args.num_layers,
+                           log_level=0)
 
-    # if specified, get specific checkpoint
-    checkpoint_dir = os.path.join(args.melody_logdir, 'checkpoints')
-    if args.ckp:
-        full_path = os.path.join(checkpoint_dir, 'model_checkpoint_step_{}.pt'.format(args.ckp))
-        num_steps = args.ckp
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    lstm.to(device)
 
-    # otherwise, get the last checkpoint (alphanumerically sorted)
+    cluster_path = "/scratch/users/schlager"
+    if os.path.exists(cluster_path):
+        print("Loading measure encodings from SCRATCH")
+        measure_enc_dir = os.path.join(cluster_path, 'logs/schlager_2019-12-02_00-34-00_tracks=Bass')
     else:
-        checkpoints = glob.glob(os.path.join(checkpoint_dir, "*.pt"))
-
-        # model_checkpoint_step_<step_number>.pt --> <step_number>
-        step_numbers = np.array(list(map(lambda x: int(x.split(".")[0].split("_")[-1]), checkpoints)))
-
-        sort_order = np.argsort(step_numbers)
-        num_steps = step_numbers[sort_order[-1]]
-
-        # gets the checkpoint path with the greatest number of steps
-        last_checkpoint_path = checkpoints[sort_order[-1]]
-        full_path = last_checkpoint_path
+        print("Loading measure encodings from local files")
+        measure_enc_dir = './logs/schlager_2019-12-02_00-34-00_tracks=Bass'
 
     print("Loading MELODY model model weights from {}...".format(full_path))
-    melody_lstm.load_state_dict(torch.load(full_path, map_location=device))
+    lstm.load_state_dict(torch.load(full_path, map_location=device))
 
-    bass_out, melody_out = melody_lstm.generate(bassline_model=bassline_lstm, k=args.k, temperature=args.temp,
-                         bass_length=args.bass_sample_len, melody_length=args.melody_sample_len)
+    mean_loss = lstm.evaluate(dataset, batch_size=args.batch_size, measure_enc_dir=measure_enc_dir)
 
-    bass_stream = decode(bass_out)
-    melody_stream = decode(melody_out)
+    print("MEAN LOSS: ", mean_loss)
 
-    melody_stream.mergeElements(bass_stream)
-    # melody_stream.show('midi')
-
-    sample_dir = './generated_samples/conditional_sample_temp-{}'.format(args.temp)
-    sample_dir = "{}_{}.mid".format(sample_dir, len(glob.glob(sample_dir+"*")))
-
-    melody_stream.write('midi', fp=sample_dir)
-
-    open_file(sample_dir)
 
 
 

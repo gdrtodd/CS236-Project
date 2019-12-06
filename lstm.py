@@ -299,6 +299,44 @@ class UnconditionalLSTM(nn.Module):
 
         return output
 
+    def evaluate(self, test_dataset, batch_size=8):
+
+        self.eval()
+        dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+
+        cumulative_loss = torch.zeros(1).to(self.device)
+        global_step = 0
+        loss_fn = nn.CrossEntropyLoss()
+        with tqdm(dataloader, desc='Running batches', total=math.ceil(len(test_dataset)/batch_size)) as progbar:
+            for batch in progbar:
+
+                with torch.no_grad():
+                    token_ids, _, _ = batch
+
+                    token_ids = token_ids.to(self.device)
+
+                    inputs, labels = token_ids[:, :-1], token_ids[:, 1:]
+
+                    out = self.forward(inputs)
+
+                    # The class dimension needs to go in the middle for the CrossEntropyLoss
+                    out = out.permute(0, 2, 1)
+
+                    # And the labels need to be (batch, additional_dims)
+                    labels = labels.permute(1, 0)
+
+                    loss = loss_fn(out, labels)
+                    cumulative_loss += loss
+                    global_step += 1
+
+                    progbar.set_postfix(Loss=loss.item())
+
+        mean_loss = cumulative_loss / global_step
+
+        self.train()
+
+        return mean_loss
+
     def mask_logits(self, logits, k=None):
         if k is None:
             return logits
@@ -308,8 +346,6 @@ class UnconditionalLSTM(nn.Module):
             return torch.where(logits < batch_mins,
                                torch.ones_like(logits) * -1e10,
                                logits)
-
-
 
 
 class ConditionalLSTM(nn.Module):
@@ -642,6 +678,55 @@ class ConditionalLSTM(nn.Module):
         self.train()
 
         return bassline_model_output, melody_model_output
+
+    def evaluate(self, dataset, batch_size=8, measure_enc_dir=None):
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+
+        if measure_enc_dir is not None:
+            measure_encodings_path = os.path.join(measure_enc_dir, 'measure_encodings.pkl')
+            print("Getting measure encoding lookup from {}...".format(measure_encodings_path))
+            with open(measure_encodings_path, 'rb') as file:
+                self.measure_enc_lookup = pickle.load(file)
+                print("\tSuccess!")
+
+        self.eval()
+
+        loss_fn = nn.CrossEntropyLoss()
+        global_step = 0
+        cumulative_loss = torch.zeros(1).to(self.device)
+        with tqdm(dataloader, desc='Running batches', total=math.ceil(len(dataset)/batch_size)) as progbar:
+            for batch in progbar:
+
+                with torch.no_grad():
+
+                    token_ids, measure_ids, track_ids = batch
+
+                    token_ids = token_ids.to(self.device)
+
+                    inputs, labels = token_ids[:, :-1], token_ids[:, 1:]
+                    measure_ids, track_ids = measure_ids[:, :-1].numpy(), track_ids[:, :-1].numpy()
+
+                    out = self.forward(inputs, measure_ids, track_ids)
+
+                    # The class dimension needs to go in the middle for the CrossEntropyLoss
+                    out = out.permute(0, 2, 1)
+
+                    # And the labels need to be (batch, additional_dims)
+                    labels = labels.permute(1, 0)
+
+                    loss = loss_fn(out, labels)
+                    progbar.set_postfix(Loss=loss.item())
+
+                    cumulative_loss += loss
+
+                    self.log_writer.add_scalar("loss", loss, global_step)
+                    global_step += 1
+
+        mean_loss = cumulative_loss / global_step
+
+        self.train()
+
+        return mean_loss
 
     def mask_logits(self, logits, k=None):
         if k is None:
