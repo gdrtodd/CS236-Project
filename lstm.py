@@ -489,11 +489,11 @@ class ConditionalLSTM(nn.Module):
                     global_step += 1
 
                     if global_step%save_interval == 0:
-                        self.save_checkpoint(global_step, generate_sample=True, measure_ids=measure_ids,
+                        self.save_checkpoint(global_step, generate_sample=False, measure_ids=measure_ids,
                                              track_ids=track_ids)
 
             # save after each epoch
-            self.save_checkpoint(global_step, generate_sample=True, measure_ids=measure_ids, track_ids=track_ids)
+            self.save_checkpoint(global_step, generate_sample=False, measure_ids=measure_ids, track_ids=track_ids)
 
     def save_checkpoint(self, global_step, generate_sample=False, measure_ids=None, track_ids=None):
         '''
@@ -502,10 +502,10 @@ class ConditionalLSTM(nn.Module):
         checkpoint_name = os.path.join(self.checkpoints_dir, "model_checkpoint_step_{}.pt".format(global_step))
         torch.save(self.state_dict(), checkpoint_name)
 
-        if generate_sample:
-            generation = self.generate(length=120, measure_ids=measure_ids, track_ids=track_ids)
-            stream = decode(generation)
-            stream.write('midi', os.path.join(self.train_sample_dir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
+        # if generate_sample:
+        #     generation = self.generate(length=120, measure_ids=measure_ids, track_ids=track_ids)
+        #     stream = decode(generation)
+        #     stream.write('midi', os.path.join(self.train_sample_dir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
 
     def generate(self, melody_condition=[60, 8, 8], bassline_condition=[36, 8, 8], bassline_model=None, k=None,
                  temperature=1, bass_length=120, melody_length=240):
