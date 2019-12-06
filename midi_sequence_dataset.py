@@ -14,7 +14,8 @@ from multiprocessing import Pool
 
 
 class MIDISequenceDataset(Dataset):
-    def __init__(self, tracks, seq_len=120, num_threads=4, cache_dir='./data_processed/', dataset="lakh"):
+    def __init__(self, tracks, seq_len=120, num_threads=4, cache_dir='./data_processed/', dataset="lakh",
+                 type="train"):
         # The sequence length needs to be divisible by 3 so that the positional encodings
         # line up properly
         assert seq_len%3 == 0
@@ -22,7 +23,7 @@ class MIDISequenceDataset(Dataset):
 
         if dataset == "lakh":
             self.data_dir = os.path.join(cache_dir, 'midis_tracks={}'.format(tracks))
-            self.save_dir = os.path.join(cache_dir, "token_dataset_tracks={}_train".format(tracks))
+            self.save_dir = os.path.join(cache_dir, "token_dataset_tracks={}_{}".format(tracks, type))
             self.lookup_file = os.path.join(cache_dir, "bass_piano_track_lookup")
         else:  # dataset == "maestro"
             self.data_dir = os.path.join(cache_dir, '{}_tracks'.format(dataset))
