@@ -11,7 +11,7 @@ from data_utils import decode, open_file
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--logdir', type=str, required=True)
-    parser.add_argument('--dataset_type', type=str, default="test")
+    parser.add_argument('--partition', type=str, default="test")
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--seq_len', type=int, default=240)
     parser.add_argument('--ckp', type=int, required=False)
@@ -48,7 +48,7 @@ if __name__ == '__main__':
         full_path = last_checkpoint_path
 
     tracks = '-'.join(list(["Piano"]))
-    dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, type=args.dataset_type)
+    dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, partition=args.partition)
 
     print("\nConstructing MELODY model...")
     lstm = ConditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, measure_enc_dim=400, num_layers=args.num_layers,

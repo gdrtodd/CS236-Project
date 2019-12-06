@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--logdir', type=str, required=True)
     parser.add_argument('--dataset', type=str, default="lakh")
     parser.add_argument('--tracks', nargs='+', type=str, required=True, default=["Piano"])
-    parser.add_argument('--dataset_type', type=str, default="test")
+    parser.add_argument('--partition', type=str, default="test")
     parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--seq_len', type=int, default=240)
     parser.add_argument('--ckp', type=int, required=False)
@@ -51,9 +51,9 @@ if __name__ == '__main__':
 
     if args.dataset == "lakh":
         tracks = '-'.join(list(args.tracks))
-        dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, type=args.dataset_type)
+        dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, partition=args.partition)
     else:
-        dataset = MIDISequenceDataset(tracks=None, dataset=args.dataset, seq_len=args.seq_len, type=args.dataset_type)
+        dataset = MIDISequenceDataset(tracks=None, dataset=args.dataset, seq_len=args.seq_len, partition=args.partition)
 
 
     mean_loss = lstm.evaluate(dataset, args.batch_size)

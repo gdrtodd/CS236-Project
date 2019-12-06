@@ -138,6 +138,7 @@ class UnconditionalLSTM(nn.Module):
 
                     loss = loss_fn(out, labels)
                     progbar.set_postfix(Loss=loss.item())
+                    progbar.set_description("[Epoch {}/{}]. Running batches...".format(idx, num_epochs))
 
                     loss.backward()
                     self.optimizer.step()
@@ -516,6 +517,7 @@ class ConditionalLSTM(nn.Module):
 
                     loss = loss_fn(out, labels)
                     progbar.set_postfix(Loss=loss.item())
+                    progbar.set_description("[Epoch {}/{}]. Running batches...".format(idx, num_epochs))
 
                     loss.backward()
                     self.optimizer.step()

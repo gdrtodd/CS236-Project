@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
     if args.dataset == "lakh":
         tracks = '-'.join(list(args.tracks))
-        dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len)
+        dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, partition="train")
     else:
         dataset = MIDISequenceDataset(tracks=None, dataset=args.dataset, seq_len=args.seq_len)
 
