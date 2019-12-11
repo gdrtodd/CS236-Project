@@ -113,7 +113,7 @@ class UnconditionalLSTM(nn.Module):
 
         return projected
 
-    def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000):
+    def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000, validation_dataset=None):
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
         loss_fn = nn.CrossEntropyLoss()
@@ -152,6 +152,45 @@ class UnconditionalLSTM(nn.Module):
 
             # save after each epoch
             self.save_checkpoint(global_step, generate_sample=True)
+
+            if validation_dataset is not None:
+                self.validate(validation_dataset, batch_size, global_step)
+
+    def validate(self, validation_dataset, batch_size, global_step):
+
+        self.eval()
+        validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
+                                           num_workers=0)
+
+        loss_fn = nn.CrossEntropyLoss()
+        cumulative_loss = torch.zeros(1).to(self.device)
+        val_step = 0
+        with tqdm(validation_dataloader, desc='Validating...', total=math.ceil(len(validation_dataset) / batch_size)) as progbar:
+            for batch in progbar:
+
+                with torch.no_grad():
+
+                    token_ids, _, _ = batch
+
+                    token_ids = token_ids.to(self.device)
+
+                    inputs, labels = token_ids[:, :-1], token_ids[:, 1:]
+
+                    out = self.forward(inputs)
+
+                    # The class dimension needs to go in the middle for the CrossEntropyLoss
+                    out = out.permute(0, 2, 1)
+
+                    # And the labels need to be (batch, additional_dims)
+                    labels = labels.permute(1, 0)
+
+                    cumulative_loss += loss_fn(out, labels)
+                    val_step += 1
+                    progbar.set_postfix(Val_Loss=(cumulative_loss.item()/val_step))
+
+        self.log_writer.add_scalar("val_loss", cumulative_loss / val_step, global_step)
+
+        self.train()
 
     def generate_measure_encodings(self, dataset, logdir, batch_size=8):
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
@@ -484,7 +523,8 @@ class ConditionalLSTM(nn.Module):
 
         return projected
 
-    def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000, measure_enc_dir=None):
+    def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000, measure_enc_dir=None,
+            validation_dataset=None):
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
         if measure_enc_dir is not None:
@@ -532,6 +572,46 @@ class ConditionalLSTM(nn.Module):
 
             # save after each epoch
             self.save_checkpoint(global_step, generate_sample=False, measure_ids=measure_ids, track_ids=track_ids)
+
+            if validation_dataset is not None:
+                self.validate(validation_dataset, batch_size, global_step)
+
+    def validate(self, validation_dataset, batch_size, global_step):
+
+        self.eval()
+        validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
+                                           num_workers=0)
+
+        loss_fn = nn.CrossEntropyLoss()
+        cumulative_loss = torch.zeros(1).to(self.device)
+        val_step = 0
+        with tqdm(validation_dataloader, desc='Validating...', total=math.ceil(len(validation_dataset) / batch_size)) as progbar:
+            for batch in progbar:
+
+                with torch.no_grad():
+
+                    token_ids, measure_ids, track_ids = batch
+
+                    token_ids = token_ids.to(self.device)
+
+                    inputs, labels = token_ids[:, :-1], token_ids[:, 1:]
+                    measure_ids, track_ids = measure_ids[:, :-1].numpy(), track_ids[:, :-1].numpy()
+
+                    out = self.forward(inputs, measure_ids, track_ids)
+
+                    # The class dimension needs to go in the middle for the CrossEntropyLoss
+                    out = out.permute(0, 2, 1)
+
+                    # And the labels need to be (batch, additional_dims)
+                    labels = labels.permute(1, 0)
+
+                    cumulative_loss += loss_fn(out, labels)
+                    val_step += 1
+                    progbar.set_postfix(Val_Loss=(cumulative_loss.item()/val_step))
+
+        self.log_writer.add_scalar("val_loss", cumulative_loss / val_step, global_step)
+
+        self.train()
 
     def save_checkpoint(self, global_step, generate_sample=False, measure_ids=None, track_ids=None):
         '''
