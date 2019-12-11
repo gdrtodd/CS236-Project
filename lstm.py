@@ -416,8 +416,8 @@ class ConditionalLSTM(nn.Module):
         # Projects the measure encodings into an embedding space
         self.measure_enc_proj = nn.Linear(measure_enc_dim, embed_dim)
 
-        # NOTE: input dimension is 2 * embed_dim because we have embeddings for both
-        # the token IDs and the positional IDs
+        # NOTE: input dimension is 3 * embed_dim because we have embeddings for both
+        # the token IDs, the positional IDs, and the bass-track measure encodings
         self.lstm = nn.LSTM(3 * embed_dim, hidden_dim, num_layers=num_layers, dropout=dropout)
 
         self.proj = nn.Linear(hidden_dim, self.vocab_size)
