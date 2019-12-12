@@ -1,6 +1,6 @@
 melody_rnn_create_dataset \
 --config='attention_rnn' \
---input=../data_processed/piano_notesequences.tfrecord \
+--input=../data_processed/tfrecords/piano_notesequences.tfrecord \
 --output_dir=logs/piano_melody_rnn/sequence_examples \
 --eval_ratio=0.10
 

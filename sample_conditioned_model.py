@@ -5,7 +5,7 @@ import torch
 import argparse
 import numpy as np
 from lstm import UnconditionalLSTM, ConditionalLSTM
-from data_utils import decode
+from data_utils import decode, open_file
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -86,6 +86,15 @@ if __name__ == '__main__':
     melody_stream = decode(melody_out)
 
     melody_stream.mergeElements(bass_stream)
-    melody_stream.show('midi')
+    # melody_stream.show('midi')
+
+    sample_dir = './generated_samples/conditional_sample_temp-{}'.format(args.temp)
+    sample_dir = "{}_{}.mid".format(sample_dir, len(glob.glob(sample_dir+"*")))
+
+    melody_stream.write('midi', fp=sample_dir)
+
+    open_file(sample_dir)
+
+
 
     

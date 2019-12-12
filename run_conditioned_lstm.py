@@ -23,12 +23,17 @@ if __name__ == '__main__':
     parser.add_argument('--log_level', type=int, default=2)
     parser.add_argument('--save_interval', type=int, default=20000)
     parser.add_argument('--log_base_dir', type=str, default='./logs')
+    parser.add_argument('--validation', action='store_true')
 
     args = parser.parse_args()
 
     if args.dataset == "lakh":
         tracks = '-'.join(list(args.tracks))
-        dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len)
+        dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, partition="train")
+        if args.validation:
+            val_dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, partition="val")
+        else:
+            val_dataset = None
     else:
         dataset = MIDISequenceDataset(tracks=None, dataset=args.dataset, seq_len=args.seq_len)
 
@@ -47,7 +52,4 @@ if __name__ == '__main__':
         measure_enc_dir = './logs/schlager_2019-12-02_00-34-00_tracks=Bass'
 
     lstm.fit(dataset, batch_size=args.batch_size, num_epochs=args.num_epochs, save_interval=args.save_interval,
-             measure_enc_dir=measure_enc_dir)
-
-    # lstm.fit(dataset, batch_size=args.batch_size, num_epochs=args.num_epochs, save_interval=args.save_interval,
-    #          measure_enc_dir='./logs/schlager_2019-12-02_00-34-00_tracks=Bass')
+             measure_enc_dir=measure_enc_dir, validation_dataset=val_dataset)

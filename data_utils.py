@@ -2,6 +2,16 @@ import music21 as m21
 import numpy as np
 from fractions import Fraction
 from collections import Counter
+import sys
+import os
+import subprocess
+
+def open_file(filename):
+    if sys.platform == "win32":
+        os.startfile(filename)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, filename])
 
 
 def get_vocab(upper_limit=8):
