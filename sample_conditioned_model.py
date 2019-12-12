@@ -19,7 +19,8 @@ if __name__ == '__main__':
     parser.add_argument('--bass_sample_len', type=int, default=120)
     parser.add_argument('--melody_sample_len', type=int, default=300)
     parser.add_argument('--k', type=int, default=40)
-    parser.add_argument('--temp', type=float, default=1)
+    parser.add_argument('--bass_temp', type=float, default=1)
+    parser.add_argument('--melody_temp', type=float, default=1)
 
     # NOTE: if --temp == 0, then we perform greedy generation
 
@@ -79,8 +80,8 @@ if __name__ == '__main__':
     print("Loading MELODY model model weights from {}...".format(full_path))
     melody_lstm.load_state_dict(torch.load(full_path, map_location=device))
 
-    bass_out, melody_out = melody_lstm.generate(bassline_model=bassline_lstm, k=args.k, temperature=args.temp,
-                         bass_length=args.bass_sample_len, melody_length=args.melody_sample_len)
+    bass_out, melody_out = melody_lstm.generate(bassline_model=bassline_lstm, k=args.k, bass_temp=args.bass_temp,
+                         bass_length=args.bass_sample_len, melody_temp=args.melody_temp, melody_length=args.melody_sample_len)
 
     bass_stream = decode(bass_out)
     melody_stream = decode(melody_out)

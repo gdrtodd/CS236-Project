@@ -626,7 +626,7 @@ class ConditionalLSTM(nn.Module):
         #     stream.write('midi', os.path.join(self.train_sample_dir, 'train_sample_checkpoint_step_{}.mid'.format(global_step)))
 
     def generate(self, melody_condition=[60, 8, 8], bassline_condition=[36, 8, 8], bassline_model=None, k=None,
-                 temperature=1, bass_length=120, melody_length=240):
+                 bass_temp=1, bass_length=120, melody_temp=1, melody_length=240):
         '''
         If 'k' is None: sample over all tokens in vocabulary
         If temperature == 0: perform greedy generation
@@ -635,7 +635,7 @@ class ConditionalLSTM(nn.Module):
             # If we have a bassline model, then we generate its output first
             if bassline_model is not None:
                 bassline_model_output = bassline_model.generate(condition=bassline_condition, k=k, 
-                                                                temperature=temperature, length=bass_length)
+                                                                temperature=bass_temp, length=bass_length)
 
                 # We need to cut off the last 3 tokens to account for the condition at the start
                 bassline_model_output = bassline_model_output[:-3]
@@ -718,11 +718,11 @@ class ConditionalLSTM(nn.Module):
                 logits = self.proj(lstm_out)
                 logits = logits.to(self.device)
 
-                if temperature == 0:
+                if melody_temp == 0:
                     prev = torch.argmax(logits[-1][0]).reshape(1, 1)
 
                 else:
-                    logits[-1][0] /= temperature
+                    logits[-1][0] /= melody_temp
 
                     # Take the last logits, and mask all but the top k
                     masked = self.mask_logits(logits[-1], k=k)
