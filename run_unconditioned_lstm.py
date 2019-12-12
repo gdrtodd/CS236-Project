@@ -21,18 +21,26 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.5)
     parser.add_argument('--log_level', type=int, default=2)
     parser.add_argument('--save_interval', type=int, default=20000)
+    parser.add_argument('--log_base_dir', type=str, default='./logs')
+    parser.add_argument('--validation', action='store_true')
 
     args = parser.parse_args()
 
     if args.dataset == "lakh":
         tracks = '-'.join(list(args.tracks))
-        dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len)
+        dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, partition="train")
+        if args.validation:
+            val_dataset = MIDISequenceDataset(tracks=tracks, seq_len=args.seq_len, partition="val")
+        else:
+            val_dataset = None
     else:
         dataset = MIDISequenceDataset(tracks=None, dataset=args.dataset, seq_len=args.seq_len)
 
     lstm = UnconditionalLSTM(embed_dim=args.e_dim, hidden_dim=args.h_dim, num_layers=args.num_layers,
-                             dropout=args.dropout, log_level=args.log_level, log_suffix='_tracks={}'.format(tracks))
+                             dropout=args.dropout, log_level=args.log_level, log_suffix='_tracks={}'.format(tracks),
+                             log_base_dir=args.log_base_dir)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     lstm.to(device)
 
-    lstm.fit(dataset, batch_size=args.batch_size, num_epochs=args.num_epochs, save_interval=args.save_interval)
+    lstm.fit(dataset, batch_size=args.batch_size, num_epochs=args.num_epochs, save_interval=args.save_interval,
+             validation_dataset=val_dataset)

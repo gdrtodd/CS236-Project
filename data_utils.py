@@ -2,6 +2,16 @@ import music21 as m21
 import numpy as np
 from fractions import Fraction
 from collections import Counter
+import sys
+import os
+import subprocess
+
+def open_file(filename):
+    if sys.platform == "win32":
+        os.startfile(filename)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, filename])
 
 
 def get_vocab(upper_limit=8):
@@ -61,9 +71,14 @@ def split_encoding_by_measure(encoding, beats_per_measure=4):
     all_timings = np.arange(0, 16, 0.125)
 
     triples = (encoding[i:i+3] for i in range(0, len(encoding), 3))
-    for pitch, duration_idx, advance_idx in triples:
-        # Add the encoding of this note to the current measure
-        encodings_by_measure[-1] += [pitch, duration_idx, advance_idx]
+    for idx, triple in enumerate(triples):
+        pitch, duration_idx, advance_idx = triple 
+
+        # Add the indices of the current note to the current measure
+        encodings_by_measure[-1] += [3*idx, 3*idx+1, 3*idx+2]
+
+        # # Add the encoding of this note to the current measure
+        # encodings_by_measure[-1] += [pitch, duration_idx, advance_idx]
 
         advance = all_timings[advance_idx]
 

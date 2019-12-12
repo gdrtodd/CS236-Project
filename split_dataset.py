@@ -2,6 +2,8 @@ import os
 import argparse
 import pickle
 import random
+from tqdm import tqdm
+import numpy as np
 
 PATH = os.path.dirname(os.path.abspath(__file__))
 LOOKUP_TABLE_PATH = os.path.join(PATH,
@@ -33,11 +35,34 @@ def partition_dataset(track_ids, train_split=80, test_split=10, val_split=10):
     
     return(train, val, test)
 
+def create_split_datasets(dataset_file, train, val, test):
+
+    with open(dataset_file, 'rb') as file:
+        dataset = np.load(file)
+        token_ids = dataset["token_ids"]
+        measure_ids = dataset["measure_ids"]
+        track_ids = dataset["track_ids"]
+
+    for i, id_set in tqdm(enumerate([train, val, test])):
+        subset_type = ["train", "val", "test"][i]
+        selection = np.where(np.isin(track_ids, id_set))
+
+        subset_token_ids = token_ids[selection]
+        subset_measure_ids = measure_ids[selection]
+        subset_track_ids = track_ids[selection]
+
+        with open("{}_{}".format(dataset_file, subset_type), 'wb') as file:
+            np.savez(file, token_ids=subset_token_ids, measure_ids=subset_measure_ids,
+                     track_ids=subset_track_ids)
+
 def main(args):
     track_lookup = get_track_lookup_dict()
-    track_ids = list(track_lookup.keys()) # Use just the track ids.
+    track_ids = list(track_lookup.values()) # Use just the id number
     train, val, test = partition_dataset(track_ids, args.train_split, 
             args.test_split, args.val_split)
+
+    create_split_datasets("data_processed/token_dataset_tracks=Bass", train, val, test)
+    create_split_datasets("data_processed/token_dataset_tracks=Piano", train, val, test)
 
     # Save all the partitions to file.
     with open(OUTPUT_TRAIN, 'wb') as handle:
