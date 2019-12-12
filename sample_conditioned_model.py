@@ -4,6 +4,7 @@ import glob
 import torch
 import argparse
 import numpy as np
+import music21 as m21
 from lstm import UnconditionalLSTM, ConditionalLSTM
 from data_utils import decode, open_file
 
@@ -84,16 +85,21 @@ if __name__ == '__main__':
     bass_stream = decode(bass_out)
     melody_stream = decode(melody_out)
 
-    melody_stream.mergeElements(bass_stream)
+    combined_stream = m21.stream.Stream()
+    bass_part = m21.stream.Part(id='bass')
+    bass_part.append(bass_stream)
+    melody_part = m21.stream.Part(id='melody')
+    melody_part.append(melody_stream)
+
+    combined_stream.insert(0, melody_part)
+    combined_stream.insert(0, bass_part)
+
+    # melody_stream.mergeElements(bass_stream)
     # melody_stream.show('midi')
 
     sample_dir = './generated_samples/conditional_sample_temp-{}'.format(args.temp)
     sample_dir = "{}_{}.mid".format(sample_dir, len(glob.glob(sample_dir+"*")))
 
-    melody_stream.write('midi', fp=sample_dir)
+    combined_stream.write('midi', fp=sample_dir)
 
     open_file(sample_dir)
-
-
-
-    
