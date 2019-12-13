@@ -1,0 +1,4 @@
+Embed dimension: 200
+Hidden dimension: 400
+Num layers: 2
+Dropout: 0.5
