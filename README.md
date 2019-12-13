@@ -3,6 +3,9 @@
 This code was developed for a final project for Stanford's CS 236 - Deep Generative
 Models course (Autumn 2019).
 
+
+
+
 ### Authors
 
 Graham Todd\
@@ -19,7 +22,27 @@ models: a bassline model that is trained first and provides rich encodings, and 
 model that conditions generation upon those rich encodings. We also present a
 novel encoding scheme for representing polyphonic music.
 
+## Model Architecture and Encoding
+
+<img src="https://github.com/gdrtodd/CS236-Project/blob/master/figures/model_diagram.png?raw=true" alt="model_diagram" width="50%"/>
+
+LSTM architectures for the melody and bass-track models during training. The bass-track
+model (lower rectangle) is fed a bass track in the form of encoded MIDI tokens. It generates a
+sequence of artificially created bass-track tokens. These bass-track tokens are grouped together by
+measure and fed into the melody model (upper rectangle), alongside a melody track from the same
+song.
+
+<img src="https://github.com/gdrtodd/CS236-Project/blob/master/figures/midi_encoding.png?raw=true" alt="encoding" width="70%"/>
+
+An example MIDI track with its corresponding tuple encodings. Each note is assigned a
+(pitch, duration, advance) value. Polyphony is achieved by having the advance value less than
+the duration value. Notice the teal and yellow notes start simultaneously due to the teal note having
+an advance value of zero.
+
+
 ## Listening to Samples
+
+<img src="https://raw.githubusercontent.com/gdrtodd/CS236-Project/master/figures/conditional_cross_track_midi.png" alt="sample_midi" width="50%"/>
 
 Check out the `./generated_samples/examples` directory for a small collection of samples.
 
