@@ -1,3 +1,8 @@
+"""
+Evaluate a provided unconditioned model against a validation or test
+dataset partition. Provide --logdir of the model checkpoint and
+the --partition of the dataset. Prints the mean cross entropy loss.
+"""
 import os
 import time
 import glob

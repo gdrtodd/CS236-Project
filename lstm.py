@@ -1,3 +1,18 @@
+"""
+The class objects for the UnconditionalLSTM and ConditionalLSTM.
+
+In general, these objects take input parameters such as the
+embedding dimension, hidden dimension, and number of layers. On
+.fit(), the models iteratively save checkpoints to a log
+directory whose root is specified by `log_base_dir.` A log_level
+parameter determines the behavior of saving the checkpoints.
+
+LOG LEVEL 0: no logs of any kind
+LOG LEVEL 1: write logs to ./logs/debug
+LOG LEVEL 2: write logs to new directory w/ username & time
+"""
+
+
 import os
 import math
 import json
@@ -16,11 +31,6 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
 class UnconditionalLSTM(nn.Module):
-    '''
-    LOG LEVEL 0: no logs of any kind
-    LOG LEVEL 1: write logs to ./logs/debug
-    LOG LEVEL 2: write logs to new directory w/ username & time
-    '''
     def __init__(self, embed_dim, hidden_dim, num_layers=2, dropout=0.5,
                  vocab_size=128, log_level=0, log_suffix=None, log_base_dir="./logs"):
         #Initialize the module constructor
@@ -157,6 +167,10 @@ class UnconditionalLSTM(nn.Module):
                 self.validate(validation_dataset, batch_size, global_step)
 
     def validate(self, validation_dataset, batch_size, global_step):
+        """
+        Runs the model against a validation dataset and writes validation
+        loss to tensorboard log file.
+        """
 
         self.eval()
         validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
@@ -193,11 +207,18 @@ class UnconditionalLSTM(nn.Module):
         self.train()
 
     def generate_measure_encodings(self, dataset, logdir, batch_size=8):
+        """
+        Generates the measure encoding lookup object used for training the conditional
+        model. The output file is a pickled multi-dictionary object that is on the order
+        of ~3 GB. A buffer dictionary is used to repeatedly dump contents to a file in
+        order to avoid memory issues.
+        """
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
         track_id_to_measure_encodings = defaultdict(lambda: defaultdict(list))
         buffer_dict = defaultdict(lambda: defaultdict(list))
 
+        # Threshold of entries before dumping to a file
         buffer_threshold = 100
         buffer_threshold_increment = 100
 
@@ -275,13 +296,8 @@ class UnconditionalLSTM(nn.Module):
             # Convert the whole thing to a normal dict
             track_id_to_measure_encodings = dict(track_id_to_measure_encodings)
 
-            # Save measure encodings (if on cluster, save to scratch dir; otherwise logdir)
-            cluster_path = "/scratch/user/schlager"
-            if os.path.exists(cluster_path):
-                base_dir = cluster_path
-            else:
-                base_dir = logdir
-            measure_encodings_path = os.path.join(base_dir, 'measure_encodings.pkl')
+            # Save measure encodings to logdir
+            measure_encodings_path = os.path.join(logdir, 'measure_encodings.pkl')
 
             print("Saving measure encodings to {}...".format(measure_encodings_path))
             with open(measure_encodings_path, 'wb') as file:
@@ -340,6 +356,10 @@ class UnconditionalLSTM(nn.Module):
         return output
 
     def evaluate(self, test_dataset, batch_size=8):
+        """
+        Evaluate the model against (typically) a test dataset. Returns
+        average (mean) cross entropy loss against that dataset.
+        """
 
         self.eval()
         dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
@@ -389,11 +409,10 @@ class UnconditionalLSTM(nn.Module):
 
 
 class ConditionalLSTM(nn.Module):
-    '''
-    LOG LEVEL 0: no logs of any kind
-    LOG LEVEL 1: write logs to ./logs/debug
-    LOG LEVEL 2: write logs to new directory w/ username & time
-    '''
+    """
+    Similar to Unconditioned except conditions generation on measure encodings accessed
+    with a measure encoding lookup object (measure_enc_lookup) set in .fit().
+    """
     def __init__(self, embed_dim, hidden_dim, measure_enc_dim, num_layers=2,
                  dropout=0.5, vocab_size=128, log_level=0, log_suffix=None, log_base_dir='./logs'):
         #Initialize the module constructor
@@ -525,6 +544,11 @@ class ConditionalLSTM(nn.Module):
 
     def fit(self, dataset, batch_size=8, num_epochs=10, save_interval=10000, measure_enc_dir=None,
             validation_dataset=None):
+        """
+        Train the conditioned LSTM using measure encodings from an unconditioned bass track
+        model (these are created prior and are stored in a measure encoding object located
+        at `measure_enc_dir.` Use generate_measure_encodings.py to create this object.
+        """
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
         if measure_enc_dir is not None:
@@ -577,6 +601,9 @@ class ConditionalLSTM(nn.Module):
                 self.validate(validation_dataset, batch_size, global_step)
 
     def validate(self, validation_dataset, batch_size, global_step):
+        """
+        Run an evaluation epoch on the validation_dataset.
+        """
 
         self.eval()
         validation_dataloader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
@@ -762,6 +789,10 @@ class ConditionalLSTM(nn.Module):
         return bassline_model_output, melody_model_output
 
     def evaluate(self, dataset, batch_size=8, measure_enc_dir=None):
+        """
+        Evalulate the model against (typically) a test dataset.
+        Returns average cross entropy loss.
+        """
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
         if measure_enc_dir is not None:

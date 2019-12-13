@@ -1,3 +1,9 @@
+"""
+See collect_midis.py. Analogously extracts MIDI tracks from
+the maestro dataset and places them in
+./data_processed/maestro_tracks.
+"""
+
 import os
 import shutil
 import argparse

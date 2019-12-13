@@ -1,3 +1,9 @@
+"""
+Utility functions for the encoding / decoding of MIDI objects
+into our custom tuple encoding. Uses music21 to aid in the music
+file and object parsing.
+"""
+
 import music21 as m21
 import numpy as np
 from fractions import Fraction
@@ -7,6 +13,11 @@ import os
 import subprocess
 
 def open_file(filename):
+    """
+    Opens a file (e.g. a generated .mid track) using the system's
+    default. Handles windows and mac separately because python os
+    module does not have the same functionality for both.
+    """
     if sys.platform == "win32":
         os.startfile(filename)
     else:
@@ -91,6 +102,11 @@ def split_encoding_by_measure(encoding, beats_per_measure=4):
     return encodings_by_measure
 
 def encode(stream, beats_per_measure=4):
+    """
+    Encode a midi stream into tokens of (pitch, duration, advance).
+    Also include a measure encoding to denote which measure each
+    token came from.
+    """
     ids_encoding = []
     measure_encoding = []
 
@@ -139,6 +155,10 @@ def encode(stream, beats_per_measure=4):
     return ids_encoding, measure_encoding
 
 def decode(encoding):
+    """
+    Decode a (pitch, duration, advance) token encoding into
+    a music21 stream (which can be saved to a .mid file).
+    """
     assert len(encoding)%3 == 0
 
     stream = m21.stream.Stream()
@@ -165,6 +185,8 @@ def decode(encoding):
     return stream
 
 if __name__ == '__main__':
+
+    # Test encode, decode of a midi file
     test_dir = './data_processed/midis_tracks=Piano/TRAAAGR128F425B14B-piano.mid'
     stream = m21.converter.parse(test_dir)
 

@@ -1,3 +1,9 @@
+"""
+Generates the measure encoding object for use with training the conditioned model.
+The measure encoding object is a double dictionary that provides a lookup to a
+bass-track model's average hidden state for a given track and given measure.
+"""
+
 import os
 import time
 import glob

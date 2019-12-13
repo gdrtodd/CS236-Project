@@ -1,3 +1,13 @@
+"""
+Train the conditioned model using user-provided parameters. Saves the model
+checkpoints repeatedly during training to `./logs/<unique_descriptive_model_dir>`
+although this can be changed (see command-line parameters below).
+
+The measure_enc_dir points to the directory that houses the measure encoding
+object used to provide bass-track model conditioning information to the
+conditional model.
+"""
+
 import os
 import torch
 import argparse
@@ -43,13 +53,8 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     lstm.to(device)
 
-    cluster_path = "/scratch/users/schlager"
-    if os.path.exists(cluster_path):
-        print("Loading measure encodings from SCRATCH")
-        measure_enc_dir = os.path.join(cluster_path, 'logs/schlager_2019-12-02_00-34-00_tracks=Bass')
-    else:
-        print("Loading measure encodings from local files")
-        measure_enc_dir = './logs/schlager_2019-12-02_00-34-00_tracks=Bass'
+    print("Loading measure encodings from local files")
+    measure_enc_dir = './logs/schlager_2019-12-02_00-34-00_tracks=Bass'
 
     lstm.fit(dataset, batch_size=args.batch_size, num_epochs=args.num_epochs, save_interval=args.save_interval,
              measure_enc_dir=measure_enc_dir, validation_dataset=val_dataset)

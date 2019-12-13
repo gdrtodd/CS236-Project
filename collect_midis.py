@@ -1,3 +1,15 @@
+"""
+Parses the raw format of the Lakh MIDI dataset as provided by the Music
+and AI Lab at Academica Sinica (which are actually in a directory-dense
+.npz [pypianoroll] format). This converts each pypianroll object into a
+valid .midi file and extracts the selected tracks from the overall songs.
+(e.g. extract only the bass tracks for the bass dataset).
+
+Assumes the Lakh MIDI dataset (lpd_5_cleansed) is in ./data_raw. Will
+output the extracted MIDI files to
+./data_processed/midis_tracks=<extracted_tracks>
+"""
+
 import os
 import argparse
 from pathlib import Path

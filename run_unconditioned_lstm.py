@@ -1,3 +1,9 @@
+"""
+Train the unconditioned model using user-provided parameters. Saves the model
+checkpoints repeatedly during training to `./logs/<unique_descriptive_model_dir>`
+although this can be changed (see command-line parameters below).
+"""
+
 import torch
 import argparse
 import numpy as np
