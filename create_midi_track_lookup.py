@@ -1,3 +1,9 @@
+"""
+Creates a lookup table for the midi dataset with a unique
+track ID for each song. This lookup table is used to uniquely
+identify tracks when training the conditional melody model.
+"""
+
 import pandas as pd
 import pickle
 import glob
@@ -16,6 +22,11 @@ def get_track_id_seq(track_file_path):
     return track_id_seq
 
 def create_individual_lookup_for(midi_dir):
+    """
+    Creates a lookup objection (dict) for a given
+    midi directory. Keys are the midi track names
+    and values are the unique ids assigned to each.
+    """
 
     midi_track_paths = glob.glob(os.path.join(midi_dir, "*.mid"))
     midi_track_names = [get_track_id_seq(x) for x in midi_track_paths]

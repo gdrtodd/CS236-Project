@@ -1,3 +1,16 @@
+"""
+MIDISequenceDataset is used to parse MIDI sequences in a song dataset
+into the processed, tokenized form for language model fitting. It also
+serves as the "server-side" dataloader for loading these tokenized data
+into the model during training.
+
+Parsing a dataset example:
+`python midi_sequence_dataset.py \
+--dataset lakh \
+--tracks Piano \
+--threads 4`
+"""
+
 import os
 import glob
 import torch
@@ -37,6 +50,9 @@ class MIDISequenceDataset(Dataset):
         with open(self.lookup_file, "rb") as f:
             self.lookup_table = pickle.load(f)
 
+        # If tokenized dataset does not exist, create it by processing
+        # the provided MIDI files (in `self.data_dir`). Saves the processed
+        # token object to `self.save_dir`.
         if not os.path.exists(self.save_dir):
             print("No token cache found, parsing MIDI files from {} ...".format(self.data_dir))
 
@@ -89,6 +105,11 @@ class MIDISequenceDataset(Dataset):
             with open(self.save_dir, 'wb') as file:
                 np.savez(file, token_ids=self.token_ids, measure_ids=self.measure_ids, track_ids=self.track_ids)
 
+        # If tokenized data exists (numpy object), load in the important
+        # info (token_ids [MIDI encoding], measure_ids [to keep track of
+        # location when training conditional model], and track_ids [to keep
+        # track of which song is being parsed when training conditional
+        # model]).
         else:
             print("Loading token cache from {} ...".format(self.save_dir))
             with open(self.save_dir, 'rb') as file:
@@ -99,6 +120,10 @@ class MIDISequenceDataset(Dataset):
 
 
     def midi_to_token_ids(self, midi_name):
+        """
+        Helper function to encode midis from a dataset. See
+        data_utils.py's encode() for the specifics.
+        """
         path = os.path.join(self.data_dir, midi_name)
         try:
             stream = m21.converter.parse(path)
@@ -112,6 +137,10 @@ class MIDISequenceDataset(Dataset):
             return [[], [], []]
 
     def get_track_id(self, midi_path):
+        """
+        Get the unique track id number from the dataset
+        lookup table.
+        """
 
         track_id_seq = self.get_track_id_seq(midi_path)
         return self.lookup_table[track_id_seq]
@@ -133,6 +162,9 @@ class MIDISequenceDataset(Dataset):
         return len(self.token_ids)//self.seq_len
 
     def __getitem__(self, idx):
+        """
+        Method called by torch.dataloader object during training.
+        """
         start = idx * self.seq_len
 
         return (torch.LongTensor(self.token_ids[start:start+self.seq_len].astype(np.double)),

@@ -1,3 +1,11 @@
+"""
+Splits a dataset into train, val, and test partitions. Saves these partitions
+as the same tokenized file objects as the original dataset, with the name of
+the partition appended to the filename.
+
+Example: token_dataset_tracks=Bass --> token_dataset_tracks=Bass_train , _val, _test
+"""
+
 import os
 import argparse
 import pickle

@@ -1,4 +1,5 @@
 # Project-wide Global Variables
+
 import os
 
 DATA_RAW = "./data_raw"
