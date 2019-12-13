@@ -28,8 +28,8 @@ from data_utils import decode, open_file
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--logdir', type=str, default='logs/schlager_2019-12-02_00-34-00_tracks=Bass')
-    parser.add_argument('--logdir2', type=str, default='logs/schlager_2019-12-05_21-30-55_tracks=Piano')
+    parser.add_argument('--logdir', type=str, default='logs/example_trained_bass')
+    parser.add_argument('--logdir2', type=str, default='logs/example_trained_unconditional_melody')
     parser.add_argument('--condition', type=int, nargs='+', required=False, default=[60, 8, 8])
     parser.add_argument('--condition2', type=int, nargs='+', default=[36, 8, 8])
     parser.add_argument('--ckp', type=int, required=False)

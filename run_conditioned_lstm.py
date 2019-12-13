@@ -34,6 +34,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_interval', type=int, default=20000)
     parser.add_argument('--log_base_dir', type=str, default='./logs')
     parser.add_argument('--validation', action='store_true')
+    parser.add_argument('--measure_enc_dir', type=str, default='./data_processed/measure_encodings.pkl')
 
     args = parser.parse_args()
 
@@ -53,8 +54,10 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     lstm.to(device)
 
-    print("Loading measure encodings from local files")
-    measure_enc_dir = './logs/schlager_2019-12-02_00-34-00_tracks=Bass'
+    if os.path.exists(args.measure_enc_dir):
+        measure_enc_dir = args.measure_enc_dir
+    else:
+        raise ValueError("No measure encoding object found at {}. Please generate one using generate_measure_encodings.py".format(args.measure_enc_dir))
 
     lstm.fit(dataset, batch_size=args.batch_size, num_epochs=args.num_epochs, save_interval=args.save_interval,
              measure_enc_dir=measure_enc_dir, validation_dataset=val_dataset)

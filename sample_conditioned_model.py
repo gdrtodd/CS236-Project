@@ -22,8 +22,8 @@ from data_utils import decode, open_file
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--bass_logdir', type=str, default='logs/schlager_2019-12-02_00-34-00_tracks=Bass')
-    parser.add_argument('--melody_logdir', type=str, default='logs/schlager_conditional_2019-12-04_11-40-07_tracks=Piano')
+    parser.add_argument('--bass_logdir', type=str, default='logs/example_trained_bass')
+    parser.add_argument('--melody_logdir', type=str, default='logs/example_trained_conditional_melody')
     parser.add_argument('--condition', type=int, nargs='+', required=False, default=[60, 8, 8])
     parser.add_argument('--ckp', type=int, required=False)
     parser.add_argument('--e_dim', type=int, default=200)
