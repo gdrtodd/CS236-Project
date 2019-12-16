@@ -64,7 +64,7 @@ your own unconditioned samples using
 
 ## Training the Model
 
-You can traing your own models using the following commands. Note that you will need
+You can train your own models using the following commands. Note that you will need
 to unpack the dataset files (stored as .zip files on git) before beginning.
 
 Train the bass-track model:
