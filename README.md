@@ -60,7 +60,7 @@ tracks.
 To compare our conditional model with a baseline unconditional model, you can generate
 your own unconditioned samples using
 
-`python3 sample_conditional_model.py --num_samples 5`
+`python3 sample_unconditional_model.py --num_samples 5`
 
 ## Training the Model
 
